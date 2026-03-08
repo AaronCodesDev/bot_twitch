@@ -1,6 +1,5 @@
 from twitchio.ext import commands
-from bot import importar_subs_al_arrancar  # IMPORTANTE: importar la función global
-
+from core.subs_manager import SubsManager
 class ActualizarSubs(commands.Cog):
 
     def __init__(self, bot, memoria):
