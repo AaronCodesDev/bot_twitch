@@ -26,11 +26,12 @@ logs/
 .idea/
 
 # --- Runtime data ---
-data/save/
-data/subs/
+data/save/*.json
+data/subs/*.json
 data/imports/
 data/users/*.json
 data/custom_commands/*.json
+!.gitkeep
 
 # --- CSVs ---
 subscriber-list.csv
