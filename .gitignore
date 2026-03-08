@@ -29,6 +29,8 @@ logs/
 data/save/
 data/subs/
 data/imports/
+data/users/*.json
+data/custom_commands/*.json
 
 # --- CSVs ---
 subscriber-list.csv
@@ -38,7 +40,7 @@ subscriber-list.csv
 Thumbs.db
 
 # --- Backups ---
-data/Backups/
+data/backup/
 
 # --- Dropbox ---
 .dropbox/

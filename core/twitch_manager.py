@@ -21,16 +21,14 @@ class TwitchManager:
         os.makedirs(os.path.dirname(self.import_path), exist_ok=True)
         
         # 1. LEER EL CSV ACTUAL PARA MANTENER LAS FECHAS ANTIGUAS (HISTORIAL)
-        # Esto evita que una sub de 2017 pase a ser de hoy.
         historial_datos = {}
         if os.path.exists(self.import_path):
             try:
                 with open(self.import_path, "r", encoding="utf-8") as f:
                     reader = csv.DictReader(f)
                     for row in reader:
-                        # Guardamos por nombre de usuario en minúsculas
-                        historial_datos[row["Username"].lower()] = row
-                print(f"📖 Historial cargado: {len(historial_datos)} usuarios recordados.")
+                        if row.get("Username"):
+                            historial_datos[row["Username"].lower()] = row
             except Exception as e:
                 print(f"⚠️ No se pudo cargar el historial: {e}")
 
@@ -60,34 +58,33 @@ class TwitchManager:
                             return False
                             
                         data = await resp.json()
-                        suscriptores_api.extend(data.get("data", []))
+                        current_batch = data.get("data", [])
+                        suscriptores_api.extend(current_batch)
                         
                         cursor = data.get("pagination", {}).get("cursor")
                         if not cursor:
                             break
 
-            # 3. ESCRIBIR EL NUEVO CSV MEZCLANDO API + HISTORIAL
+            # 3. ESCRIBIR EL NUEVO CSV
+            # IMPORTANTE: No filtramos al broadcaster para asegurar que el archivo tenga datos si solo estás tú.
             with open(self.import_path, "w", newline="", encoding="utf-8") as f:
                 fieldnames = ["Username", "Subscribe Date", "Current Tier", "Tenure", "Streak", "Sub Type", "Founder"]
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 
+                escribiendo_count = 0
                 for s in suscriptores_api:
                     username = s["user_name"].lower()
-                    if s["user_id"] == self.broadcaster_id:
-                        continue
-
+                    
                     # --- LÓGICA DE PERSISTENCIA ---
-                    # Si ya lo teníamos en el CSV (historial), respetamos su fecha y datos antiguos
                     if username in historial_datos:
                         row_data = historial_datos[username]
-                        sub_date = row_data["Subscribe Date"]
-                        tenure = row_data["Tenure"]
-                        streak = row_data["Streak"]
-                        sub_type = row_data["Sub Type"]
-                        founder = row_data["Founder"]
+                        sub_date = row_data.get("Subscribe Date")
+                        tenure = row_data.get("Tenure", "1")
+                        streak = row_data.get("Streak", "1")
+                        sub_type = row_data.get("Sub Type", "recurring")
+                        founder = row_data.get("Founder", "false")
                     else:
-                        # Si es un suscriptor NUEVO (no estaba en el CSV), usamos datos de API
                         raw_date = s.get("started_at", "")
                         if raw_date:
                             dt_obj = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
@@ -100,7 +97,7 @@ class TwitchManager:
                         sub_type = "gift" if s.get("is_gift") else "recurring"
                         founder = "false"
 
-                    # El Tier siempre lo actualizamos según la API por si cambió
+                    # El Tier siempre lo actualizamos según la API
                     tier_val = s.get("tier", "1000")
                     tier_label = f"Tier {int(tier_val) // 1000}"
 
@@ -113,8 +110,9 @@ class TwitchManager:
                         "Sub Type": sub_type,
                         "Founder": founder
                     })
+                    escribiendo_count += 1
 
-            print(f"✅ CSV actualizado correctamente. Subs actuales: {len(suscriptores_api)}")
+            print(f"✅ CSV actualizado correctamente. Subs escritos: {escribiendo_count}")
             return True
 
         except Exception as e:

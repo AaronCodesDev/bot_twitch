@@ -6,7 +6,6 @@ CUENTA_PROPIA = "fantan"
 SUB_DURACION_DIAS = 30
 
 # ───────── FRASES ─────────
-
 FRASES_SUBS = {
     "rojo": [
         "😱 {user}, última semana… ¡corre que se te acaba la sub!",
@@ -58,63 +57,20 @@ FRASES_SUBS = {
     ]
 }
 
-# Frases especiales últimos días (1–6)
 ULTIMOS_DIAS = {
-    6: [
-        "⏳ {user}, quedan 6 días… el reloj corre.",
-        "😬 {user}, empieza la última semana.",
-        "🔥 {user}, 6 días para salvar la sub.",
-        "⚠️ {user}, cuenta atrás activada.",
-        "😏 {user}, aún hay esperanza."
-    ],
-    5: [
-        "⏰ {user}, solo 5 días…",
-        "😱 {user}, el pánico empieza.",
-        "💀 {user}, el desastre se acerca.",
-        "😈 {user}, el rojo te observa.",
-        "⚡ {user}, decide ya."
-    ],
-    4: [
-        "⚠️ {user}, 4 días restantes.",
-        "🔥 {user}, la cuenta atrás sigue.",
-        "😅 {user}, todavía puedes salvarte.",
-        "😎 {user}, no todo está perdido.",
-        "😏 {user}, corre."
-    ],
-    3: [
-        "🔥 {user}, solo 3 días…",
-        "💀 {user}, el drama es real.",
-        "⏳ {user}, el tiempo se agota.",
-        "⚡ {user}, último aviso.",
-        "😬 {user}, actúa ya."
-    ],
-    2: [
-        "💀 {user}, 2 días…",
-        "😱 {user}, pánico máximo.",
-        "⚠️ {user}, casi no hay tiempo.",
-        "🔥 {user}, corre o cae.",
-        "😈 {user}, tensión al límite."
-    ],
-    1: [
-        "😱 {user}, último día…",
-        "💀 {user}, hoy se decide todo.",
-        "⚡ {user}, o renuevas o mueres.",
-        "🔥 {user}, el final está aquí.",
-        "😬 {user}, últimas 24h."
-    ]
+    6: ["⏳ {user}, quedan 6 días… el reloj corre.", "😬 {user}, empieza la última semana.", "🔥 {user}, 6 días para salvar la sub."],
+    5: ["⏰ {user}, solo 5 días…", "😱 {user}, el pánico empieza.", "💀 {user}, el desastre se acerca."],
+    4: ["⚠️ {user}, 4 días restantes.", "🔥 {user}, la cuenta atrás sigue.", "😅 {user}, todavía puedes salvarte."],
+    3: ["🔥 {user}, solo 3 días…", "💀 {user}, el drama es real.", "⏳ {user}, el tiempo se agota."],
+    2: ["💀 {user}, 2 días…", "😱 {user}, pánico máximo.", "⚠️ {user}, casi no hay tiempo."],
+    1: ["😱 {user}, último día…", "💀 {user}, hoy se decide todo.", "⚡ {user}, o renuevas o mueres."]
 }
 
 FRASES_NO_SUB = [
-    "😏 {user} no es sub… pero oye, justo hoy es un gran día para no ganar nada. O sí. Quién sabe.",
+    "😏 {user} no es sub… pero oye, justo hoy es un gran día para no ganar nada.",
     "🤨 {user} sin sub. Los sorteos existen, la suerte también… Fantan ya es otro tema.",
-    "😈 {user} no es sub todavía. Igual hoy cae premio. Igual Fantan se hace el loco.",
-    "😂 {user} no es sub… pero tranquilo, los premios no muerden. Fantan un poco.",
-    "😎 {user} fuera del club de subs. Dentro hay sorteos, risas… y promesas vagas.",
-    "🫣 {user} aún no es sub. Los subs suelen ganar más… suele. A veces. Quizá.",
-    "👀 {user} no es sub. El botón está ahí, el sorteo también, la decisión es tuya.",
-    "🤷 {user} sin sub. Igual hoy no pasa nada. Igual pasa algo. Fantan decide.",
-    "😬 {user} no es sub todavía. Dicen que los subs tienen más suerte… dicen.",
-    "💸 {user} no es sub. Fantan no promete premios, pero le gusta que la gente pruebe."
+    "😈 {user} no es sub todavía. Igual hoy cae premio.",
+    "😂 {user} no es sub… pero tranquilo, los premios no muerden. Fantan un poco."
 ]
 
 # ───────── COG ─────────
@@ -124,10 +80,9 @@ class MostrarSubs(commands.Cog):
         self.bot = bot
         self.memoria = memoria
 
-    # ───── Helpers (NO TOCAN Memory) ─────
-
     def _get_inicio_sub(self, user: str):
-        data = self.memoria.subs.get(user)
+        # Buscamos en los suscriptores cargados por el bot
+        data = self.bot.suscriptores.get(user.lower())
         if not data or not isinstance(data, dict):
             return None
 
@@ -136,7 +91,8 @@ class MostrarSubs(commands.Cog):
             return None
 
         try:
-            dt = datetime.fromisoformat(fecha)
+            # Limpiamos el formato de fecha para que Python lo entienda
+            dt = datetime.fromisoformat(fecha.replace("Z", "+00:00"))
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)    
             return dt
@@ -147,91 +103,96 @@ class MostrarSubs(commands.Cog):
         inicio = self._get_inicio_sub(user)
         if not inicio:
             return -1
-
-        fin = inicio + timedelta(days=SUB_DURACION_DIAS)
-        return (fin - datetime.now(timezone.utc)).days
+        
+        ahora = datetime.now(timezone.utc)
+        # Calculamos cuánto tiempo ha pasado
+        dias_desde_inicio = (ahora - inicio).days
+        
+        # Como Twitch funciona por ciclos de 30 días, calculamos
+        # cuánto le queda para terminar su "mes" actual de sub.
+        dias_consumidos_este_mes = dias_desde_inicio % 30
+        restantes = 30 - dias_consumidos_este_mes
+        return restantes
 
     def _dias_como_sub(self, user: str) -> int:
         inicio = self._get_inicio_sub(user)
         if not inicio:
             return 0
-        delta = datetime.now(timezone.utc) - inicio
         return max(0, (datetime.now(timezone.utc) - inicio).days)
 
     def _is_sub(self, user: str) -> bool:
-        return self._dias_restantes_sub(user) >= 0
+        # Es sub si está en nuestra lista de memoria
+        return user.lower() in self.bot.suscriptores
 
     def _obtener_frase_color_tag(self, restantes, user):
-        if restantes < 0:
-            return None, None, None
-
         user_tag = f"@{user}"
-
+        
+        # Lógica de colores y frases aleatorias
         if 1 <= restantes <= 6:
-            frase = random.choice(ULTIMOS_DIAS[restantes]).format(user=user_tag)
+            frase = random.choice(ULTIMOS_DIAS.get(restantes, ["⏳ {user}, queda poco..."])).format(user=user_tag)
             return frase, "🔴", f"{restantes} días"
-
+        
         if restantes <= 7:
             frase = random.choice(FRASES_SUBS["rojo"]).format(user=user_tag)
             return frase, "🔴", f"{restantes} días"
-
+        
         if restantes <= 15:
             frase = random.choice(FRASES_SUBS["naranja"]).format(user=user_tag)
             return frase, "🟠", f"{restantes} días"
-
+        
         if restantes <= 22:
             frase = random.choice(FRASES_SUBS["amarillo"]).format(user=user_tag)
             return frase, "🟡", f"{restantes} días"
-
+        
         frase = random.choice(FRASES_SUBS["verde"]).format(user=user_tag)
         return frase, "🟢", f"{restantes} días"
-
-    # ───── Comando !subs ─────
 
     @commands.command(name="subs")
     async def mostrar_subs(self, ctx: commands.Context, usuario: str = None):
         es_mod = ctx.author.is_mod or ctx.author.is_broadcaster
 
-        # Consulta individual
+        # 1. Consulta individual (!subs @usuario)
         if usuario:
             usuario = usuario.lstrip("@").lower()
-
+            
+            # BLOQUEO 1: Si el usuario consultado eres tú, el bot no responde
             if usuario == CUENTA_PROPIA:
                 return
 
             if not self._is_sub(usuario):
-                frase = random.choice(FRASES_NO_SUB).format(user=f"@{usuario}")
-                return await ctx.send(frase)
+                return await ctx.send(random.choice(FRASES_NO_SUB).format(user=f"@{usuario}"))
 
             restantes = self._dias_restantes_sub(usuario)
             dias_totales = self._dias_como_sub(usuario)
-
             frase, color, tag = self._obtener_frase_color_tag(restantes, usuario)
 
             if frase:
-                await ctx.send(
-                    f"{color} @{usuario} es sub hace {dias_totales} días ({tag}). {frase}"
-                )
+                await ctx.send(f"{color} @{usuario} es sub hace {dias_totales} días ({tag}). {frase}")
             return
 
-        # Lista completa (mods)
+        # 2. Lista completa para Mods/Broadcaster (!subs)
         if not es_mod:
-            return await ctx.send("❌ Solo mods pueden usar !subs sin nombre.")
+            return await ctx.send("❌ Solo mods pueden ver la lista completa.")
 
+        # BLOQUEO 2: Filtramos la lista para que NO te incluya a ti
         subs_activos = [
-            u for u in self.memoria.subs
-            if u != CUENTA_PROPIA and self._dias_restantes_sub(u) >= 0
+            u for u in self.bot.suscriptores.keys() 
+            if u.lower() != CUENTA_PROPIA
         ]
 
         if not subs_activos:
-            return await ctx.send("📄 No hay subs activos 😢")
+            return await ctx.send("📄 No hay subs activos en la base de datos 😢")
 
+        # Ordenamos por los que están más cerca de caducar (rojos primero)
         subs_activos.sort(key=lambda u: self._dias_restantes_sub(u))
 
+        # Construimos el mensaje con frases para cada uno
         mensajes = []
-        for user in subs_activos:
+        # Mostramos los primeros 5 subs reales
+        for user in subs_activos[:5]: 
             restantes = self._dias_restantes_sub(user)
             frase, color, tag = self._obtener_frase_color_tag(restantes, user)
             mensajes.append(f"{color} ({tag}) — {frase}")
 
-        await ctx.send("⭐ Subs activos del mes:\n" + "\n".join(mensajes))
+        total = len(subs_activos)
+        await ctx.send(f"⭐ {total} Subs activos del mes:\n" + " | ".join(mensajes))

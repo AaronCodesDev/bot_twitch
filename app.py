@@ -35,9 +35,10 @@ class BotFantan(commands.Bot):
         self.config = config
         self.memory = Memory()
         
-        # Cargamos datos iniciales usando persistence
+        # Carga inicial de datos
         self.favoritos = cargar_favoritos()
         self.suscriptores = cargar_suscriptores()
+        self.memory.subs = self.suscriptores
         
         self.client_id = config["twitch"]["client_id"]
         self.channel_id = config["twitch"]["broadcaster_id"]
@@ -50,33 +51,35 @@ class BotFantan(commands.Bot):
             self._setup_cog(cog_cls)
 
     def _setup_cog(self, cog_cls):
-        """Lógica interna para registrar cogs según sus parámetros."""
-        if cog_cls.__name__ == "InstantGaming":
-            self.add_cog(cog_cls(self, config=self.config, memory=self.memory))
-        elif cog_cls.__name__ == "Opina":
-            self.add_cog(cog_cls(self, client_openai, self.memory, self.config))
-        elif "config" in cog_cls.__init__.__code__.co_varnames:
-            self.add_cog(cog_cls(self, self.memory, self.config))
-        else:
-            self.add_cog(cog_cls(self, self.memory))
+        try:
+            if cog_cls.__name__ == "InstantGaming":
+                self.add_cog(cog_cls(self, config=self.config, memory=self.memory))
+            elif cog_cls.__name__ == "Opina":
+                self.add_cog(cog_cls(self, client_openai, self.memory, self.config))
+            elif "config" in cog_cls.__init__.__code__.co_varnames:
+                self.add_cog(cog_cls(self, self.memory, self.config))
+            else:
+                self.add_cog(cog_cls(self, self.memory))
+        except Exception as e:
+            print(f"❌ Error cargando el Cog {cog_cls.__name__}: {e}")
 
     # --- LÓGICA DE USUARIOS ---
     def es_suscriptor(self, usuario):
         usuario = usuario.lower()
-        if usuario not in self.suscriptores: return False
-        
-        info = self.suscriptores[usuario]
+        if usuario not in self.memory.subs: return False
+        info = self.memory.subs[usuario]
         fecha_str = info.get("fecha") if isinstance(info, dict) else str(info)
         try:
-            fecha_sub = datetime.fromisoformat(fecha_str)
-            return (datetime.now(timezone.utc) - fecha_sub.replace(tzinfo=timezone.utc)).days <= Memory.SUB_DURATION_DAYS
+            fecha_iso = fecha_str.replace("Z", "+00:00")
+            fecha_sub = datetime.fromisoformat(fecha_iso)
+            if fecha_sub.tzinfo is None: fecha_sub = fecha_sub.replace(tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc) - fecha_sub).days <= Memory.SUB_DURATION_DAYS
         except: return False
 
     def obtener_nivel_trato(self, usuario):
         usuario = usuario.lower()
         if self.es_suscriptor(usuario): return "suscriptor"
         if usuario in self.favoritos: return "favorito"
-        
         confianza = self.memory.get_confianza(usuario)
         if confianza >= 1000: return "amigable"
         if confianza >= 501: return "neutral"
@@ -84,41 +87,36 @@ class BotFantan(commands.Bot):
 
     # --- EVENTOS ---
     async def event_ready(self):
+        # Recarga final de seguridad al conectar
+        self.suscriptores = cargar_suscriptores()
+        self.memory.subs = self.suscriptores
+        
         print(f"✅ Bot conectado como {self.nick}!")
+        print(f"📊 [DATOS] Subs en memoria: {len(self.memory.subs)}")
+        
         frase = random.choice(arrival_phrases) if arrival_phrases else "¡Bot conectado!"
         for ch in self.connected_channels: await ch.send(frase)
         
         self.iracing_listener = IRacingListener(self)
         asyncio.create_task(self.iracing_listener.start())
 
-    async def event_subscription(self, channel, user, sub):
-        SubsManager.guardar_sub('normal', sub.tier, usuario=user.name.lower())
-
-    async def event_subgift(self, channel, gifter, user, sub):
-        SubsManager.guardar_sub('regalada', sub.tier, regalador=gifter.name.lower(), receptor=user.name.lower())
-
     async def event_message(self, message):
-        if message.echo or message.author.name.lower() in self.BOTS_IGNORADOS:
+        if message.echo or (message.author and message.author.name.lower() in self.BOTS_IGNORADOS):
             return
-
         user = message.author.name.lower()
         texto = message.content.strip()
         self.memory.ensure_user(user)
-
-        # 1. Comandos
         if texto.startswith("!"):
             await self._handle_custom_and_standard_commands(message, texto)
             return
-
-        # 2. Filtros y Memoria
         self.memory.add_recuerdo(user, texto)
         if await self._aplicar_filtros(message, user, texto): return
-
-        # 3. Interacción Social
         await self._procesar_social(message, user, texto)
 
     async def _handle_custom_and_standard_commands(self, message, texto):
-        comando = texto[1:].split()[0].lower()
+        parts = texto[1:].split()
+        if not parts: return
+        comando = parts[0].lower()
         custom = self.get_cog("CustomCommands")
         if custom and hasattr(custom, "custom_commands") and comando in custom.custom_commands:
             await message.channel.send(custom.custom_commands[comando].replace("{user}", message.author.name))
@@ -127,27 +125,17 @@ class BotFantan(commands.Bot):
             except commands.errors.CommandNotFound: pass
 
     async def _aplicar_filtros(self, message, user, texto):
-        """Retorna True si el mensaje fue filtrado por spam/insultos."""
         palabras = texto.split()
         if len(texto) > 200 or (palabras and palabras.count(palabras[0]) > 5):
             await message.channel.send(f"@{user}, relaja el teclado 😏")
-            self.memory.add_confianza(user, -3)
-            return True
-        if any(p in texto.lower() for p in ["noob", "mierda", "bot malo"]):
-            await message.channel.send(f"@{user} cuidado con lo que dices 🤖💢")
-            self.memory.add_confianza(user, -5)
             return True
         return False
 
     async def _procesar_social(self, message, user, texto):
         nivel = self.obtener_nivel_trato(user)
         self.memory.add_confianza(user, +1)
-
-        # Saludos
         if re.search(r"\bhola\b", texto, re.IGNORECASE):
             await self._enviar_saludo(message, user, nivel)
-
-        # Respuestas "Wey"
         await self._check_wey(message, user, texto)
 
     async def _enviar_saludo(self, message, user, nivel):
@@ -164,25 +152,25 @@ class BotFantan(commands.Bot):
         if re.search(r'\bw+e{2,}y+\b', msg): res = random.choice(wey_estirado_phrases)
         elif re.search(r'\bw+e+y+\b', msg): res = random.choice(wey_normal_phrases)
         elif re.search(r"\b[wvu]+[eéií]+[iy]+[y]+(?:s+)?\b", msg): res = random.choice(wey_deformado_phrases)
-        
         if res: await message.channel.send(f"@{user} {res}")
 
 # --- PUNTO DE ENTRADA ---
 if __name__ == "__main__":
-    bot = BotFantan()
-    
-    async def prep():
-        # Llamamos al método estático del Manager, no al bot
-        await SubsManager.actualizar_desde_twitch()
-        # Luego importamos los datos
-        SubsManager.importar_subs_al_arrancar()
-    
-    # Ejecutar la preparación
-    try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(prep())
-    except Exception as e:
-        print(f"⚠️ Error en la preparación inicial: {e}")
+    # 1. Preparación de datos
+    async def run_prep():
+        print("🔄 Sincronizando sistema...")
+        try:
+            # Esta función YA LLAMA a importar_subs_al_arrancar() por dentro
+            await SubsManager.actualizar_desde_twitch()
+        except Exception as e:
+            print(f"⚠️ Error en la sincronización inicial: {e}")
 
-    # Lanzar el bot
+    # Ejecutar la preparación
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_prep())
+
+    # 2. Arrancar el Bot
+    print("🚀 Iniciando Bot Fantan...")
+    bot = BotFantan()
     bot.run()
