@@ -116,13 +116,20 @@ class BotFantan(commands.Bot):
     async def _handle_custom_and_standard_commands(self, message, texto):
         parts = texto[1:].split()
         if not parts: return
-        comando = parts[0].lower()
-        custom = self.get_cog("CustomCommands")
-        if custom and hasattr(custom, "custom_commands") and comando in custom.custom_commands:
-            await message.channel.send(custom.custom_commands[comando].replace("{user}", message.author.name))
+        comando_nombre = parts[0].lower()
+        
+        custom_cog = self.get_cog("CustomCommands")
+        
+        # Si el Cog existe y tiene el comando en su diccionario
+        if custom_cog and hasattr(custom_cog, "custom_commands") and comando_nombre in custom_cog.custom_commands:
+            # USAMOS EL MÉTODO DEL COG (esto gestiona el {count} y el {user} correctamente)
+            await custom_cog.ejecutar_comando(comando_nombre, message)
         else:
-            try: await self.handle_commands(message)
-            except commands.errors.CommandNotFound: pass
+            # Si no es un comando personalizado, buscamos en los comandos estándar (!oye, !soy, etc.)
+            try: 
+                await self.handle_commands(message)
+            except commands.errors.CommandNotFound: 
+                pass
 
     async def _aplicar_filtros(self, message, user, texto):
         palabras = texto.split()

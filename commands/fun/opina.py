@@ -50,6 +50,8 @@ Da tu opinión como FantanBot:
 
         # Guardar en memoria
         try:
-            self.memoria.agregar(user, "opina", reply)
-        except Exception:
-            pass
+            # Guardamos el contexto: lo que preguntó y lo que respondimos
+            recuerdo = f"Opinó sobre: {tema} | Respuesta: {reply}"
+            self.memoria.add_recuerdo(user, recuerdo)
+        except Exception as e:
+            print(f"⚠️ Error guardando memoria en Opina: {e}")

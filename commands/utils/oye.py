@@ -49,7 +49,7 @@ class Oye(commands.Cog):
         # --- Guardar el !oye como comando ---
         comandos_actuales = self.obtener_comandos_usuario(user)
         if f"!oye {texto_limpio}" not in comandos_actuales:
-            self.memoria.add_comando(user, f"!oye {texto_limpio}")
+            self.memoria.add_recuerdo(user, f"!oye {texto_limpio}")
 
         # --- Guardar memoria ---
         if texto_limpio.lower().startswith("soy "):
@@ -84,7 +84,7 @@ class Oye(commands.Cog):
             await ctx.send(f"@{user} {reply}")
 
             # Guardar respuesta en historial
-            self.memoria.add_comando(user, "!oye respuesta", respuesta=reply)
+            self.memoria.add_recuerdo(user, f"!oye respuesta, {reply}")
 
         except Exception as e:
             print(f"Error con OpenAI: {e}")

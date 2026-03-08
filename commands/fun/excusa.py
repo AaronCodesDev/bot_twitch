@@ -18,7 +18,7 @@ class Excusa(commands.Cog):
         await ctx.send(respuesta)
 
         # 🔹 Guardar como COMANDO
-        self.memoria.add_comando(user, "!excusa")
+        self.memoria.add_recuerdo(user, "!excusa")
 
         # 🔹 Llamada segura a guardar_datos
         if hasattr(self.memoria, "guardar_datos"):
