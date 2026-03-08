@@ -1,0 +1,46 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Virtual env ---
+venv/
+.env/
+
+# --- Config ---
+config.json
+
+# --- Builds ---
+build/
+dist/
+*.exe
+*.spec
+
+# --- Logs ---
+*.log
+logs/
+
+# --- IDEs ---
+/.vscode/
+.idea/
+
+# --- Runtime data ---
+data/save/
+data/subs/
+data/imports/
+
+# --- CSVs ---
+subscriber-list.csv
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Backups ---
+data/Backups/
+
+# --- Dropbox ---
+.dropbox/
+.dropbox.cache/
+~/.dropbox

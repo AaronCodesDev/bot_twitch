@@ -1,0 +1,23 @@
+promo_phrases = [
+            "Dicen que {user} hace buen contenido… yo no lo confirmo, pero entra y juzga tú 👉 https://www.twitch.tv/{user_lower}",
+            "Si hoy te apetece perder neuronas con estilo, pásate por {user} 👉 https://www.twitch.tv/{user_lower}",
+            "{user} está en directo. No es mi culpa si te quedas 👉 https://www.twitch.tv/{user_lower}",
+            "Promocionar a {user} es como recomendar café descafeinado: sorprendentemente aceptable 👉 https://www.twitch.tv/{user_lower}",
+            "¿Que si merece la pena {user}? Solo hay una forma de decepcionarte 👉 https://www.twitch.tv/{user_lower}",
+            "Aviso legal: entrar al canal de {user} puede causar risas involuntarias 👉 https://www.twitch.tv/{user_lower}",
+            "{user} streamea. Yo solo transmito el aviso, tú decides el error 👉 https://www.twitch.tv/{user_lower}",
+            "Si te gusta el contenido cuestionable pero constante, {user} es tu sitio 👉 https://www.twitch.tv/{user_lower}",
+            "No digo que {user} sea bueno… digo que existe 👉 https://www.twitch.tv/{user_lower}",
+            "Entra al canal de {user}. Luego no digas que no te avisamos 👉 https://www.twitch.tv/{user_lower}",
+            "{user} está en Twitch haciendo “contenido”. Definición flexible 👉 https://www.twitch.tv/{user_lower}",
+            "Recomendación no solicitada del día: {user} 👉 https://www.twitch.tv/{user_lower}",
+            "Hay gente que paga Netflix y luego ve a {user}. Piénsalo 👉 https://www.twitch.tv/{user_lower}",
+            "Si sobrevives 5 minutos en el canal de {user}, ya es mérito 👉 https://www.twitch.tv/{user_lower}",
+            "{user} promete entretenimiento. El nivel depende de tus expectativas 👉 https://www.twitch.tv/{user_lower}",
+            "Otro streamer más… pero este es {user}, así que peor o mejor 👉 https://www.twitch.tv/{user_lower}",
+            "Pásate por {user} antes de que Twitch se arrepienta 👉 https://www.twitch.tv/{user_lower}",
+            "Contenido premium a precio de gratis: {user} 👉 https://www.twitch.tv/{user_lower}",
+            "No es spam si te lo digo con cariño: {user} 👉 https://www.twitch.tv/{user_lower}",
+            "{user} está en directo. Yo solo soy el mensajero del caos 👉 https://www.twitch.tv/{user_lower}",
+        ]
+

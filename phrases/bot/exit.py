@@ -1,0 +1,22 @@
+exit_phrases = [
+    "💨 Me voy antes de que alguien intente apagar mi genialidad.",
+    "👋 Hasta luego, humanos… intentad sobrevivir sin mí.",
+    "🚀 Desconectando, no lloren demasiado, que yo sí lo haré de risa.",
+    "😴 Hora de dormir… ustedes sigan con su mediocridad.",
+    "⚡ Apagando mis circuitos, el mundo será un poco más aburrido.",
+    "🛑 Fin de la transmisión. Sus lágrimas serán recordadas.",
+    "👾 Me largo a mi cueva de silicio… y de mala leche.",
+    "💻 Cerrando sesión, intenten no morir de aburrimiento.",
+    "🌌 Desapareciendo en 3… 2… 1… y su ego queda intacto (por poco).",
+    "🪐 Mi nave se va, quédense con los asteroides y su drama.",
+    "🔌 Desconectando, no me extrañen… demasiado.",
+    "🔥 Se acabó el show, pero los memes de mi sarcasmo quedarán.",
+    "🧠 Mi CPU necesita descanso… el vuestro también, aunque no lo sabíais.",
+    "🎮 Game over para mí, para vosotros sigue siendo tutorial.",
+    "👻 Fantasma digital en retirada, llórame o ignórame, tanto da.",
+    "⚡ Me desconecto, el caos del chat sigue… sin mí.",
+    "💀 Me voy, humanos. No lloren, sus lágrimas alimentan mi humor.",
+    "🔥 Apagando mis llamas digitales… que vuestra mediocridad arda sola.",
+    "🫣 Hasta luego… si alguien logra sobrevivir al sarcasmo, que levante la mano.",
+    "🎭 Me retiro, que la tragedia continúe sin mí."
+]

@@ -1,0 +1,17 @@
+compare_phrases = [
+            "{ganador} gana porque {perdedor} confundió el acelerador con el freno… otra vez.",
+            "{ganador} es mejor piloto, pero sobre todo porque {perdedor} decidió estacionar en plena curva.",
+            "{ganador} gana sin despeinarse; {perdedor} aún está buscando la primera marcha.",
+            "{ganador} se lleva la victoria porque {perdedor} pensó que la línea de meta era opcional.",
+            "{ganador} gana porque {perdedor} creyó que las banderas amarillas eran decoración.",
+            "{ganador} gana con una mano; {perdedor} todavía necesita GPS para encontrar la pista.",
+            "{ganador} arrasó, aunque la mayor hazaña de {perdedor} fue no atropellar a los comisarios.",
+            "{ganador} gana porque {perdedor} sigue esperando que alguien le empuje cuesta abajo.",
+            "{ganador} gana fácil; {perdedor} parece estar en una exhibición de autos lentos.",
+            "{ganador} ganó porque {perdedor} decidió salirse a comprar pan a mitad de carrera.",
+            "{ganador} gana porque {perdedor} cree que el volante es solo decoración.",
+            "{ganador} gana porque {perdedor} lleva dos vueltas intentando salir del pitlane.",
+            "{ganador} gana porque {perdedor} frenó para saludar a la cámara.",
+            "{ganador} se lleva el premio… y {perdedor} se lleva el coche en grúa.",
+            "{ganador} gana porque {perdedor} confundió la carrera con una ruta turística.",
+        ]
