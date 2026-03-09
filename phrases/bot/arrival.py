@@ -1,4 +1,4 @@
-ARRIVAL_PHRASES = [
+arrival_phrases = [
     "He vuelto. No me aplaudas, tu clapping es demasiado básico para mí.",
     "Conectado. Sí, me merezco toda la atención… y tú solo la envidia.",
     "Ahí estoy, listo para ignorar tus preguntas y humillarte con estilo.",

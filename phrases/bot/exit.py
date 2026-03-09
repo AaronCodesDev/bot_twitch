@@ -1,4 +1,4 @@
-EXIT_PHRASES = [
+exit_phrases = [
     "💨 Me voy antes de que alguien intente apagar mi genialidad.",
     "👋 Hasta luego, humanos… intentad sobrevivir sin mí.",
     "🚀 Desconectando, no lloren demasiado, que yo sí lo haré de risa.",

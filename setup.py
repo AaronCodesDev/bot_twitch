@@ -25,8 +25,8 @@ def extract_phrases_from_file(file_path):
     return []
 
 def save_phrases_file(file_path, phrases):
-    """Guarda las frases en el archivo con el formato original del bot."""
-    var_name = os.path.basename(file_path).replace('.py', '').upper() + "_PHRASES"
+    """Guarda las frases en el archivo con el formato original del bot en minúsculas."""
+    var_name = os.path.basename(file_path).replace('.py', '') + "_phrases"
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write(f'{var_name} = [\n')
         for p in phrases:
