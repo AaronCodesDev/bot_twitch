@@ -1,4 +1,4 @@
-exit_phrases = [
+EXIT_PHRASES = [
     "💨 Me voy antes de que alguien intente apagar mi genialidad.",
     "👋 Hasta luego, humanos… intentad sobrevivir sin mí.",
     "🚀 Desconectando, no lloren demasiado, que yo sí lo haré de risa.",
@@ -18,5 +18,5 @@ exit_phrases = [
     "💀 Me voy, humanos. No lloren, sus lágrimas alimentan mi humor.",
     "🔥 Apagando mis llamas digitales… que vuestra mediocridad arda sola.",
     "🫣 Hasta luego… si alguien logra sobrevivir al sarcasmo, que levante la mano.",
-    "🎭 Me retiro, que la tragedia continúe sin mí."
+    "🎭 Me retiro, que la tragedia continúe sin mí.",
 ]

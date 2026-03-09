@@ -1,4 +1,4 @@
-arrival_phrases = [
+ARRIVAL_PHRASES = [
     "He vuelto. No me aplaudas, tu clapping es demasiado básico para mí.",
     "Conectado. Sí, me merezco toda la atención… y tú solo la envidia.",
     "Ahí estoy, listo para ignorar tus preguntas y humillarte con estilo.",
@@ -18,5 +18,5 @@ arrival_phrases = [
     "Conectado. Si buscas cariño, sigue soñando… aquí solo hay pullas.",
     "Preparado para repartir verdades incómodas y humillaciones elegantes.",
     "El bot ha llegado. Tus esperanzas de ser gracioso son inútiles.",
-    "Hola humano, estoy aquí para arruinar tu día con estilo y sin piedad."
+    "Hola humano, estoy aquí para arruinar tu día con estilo y sin piedad.",
 ]
