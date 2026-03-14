@@ -115,10 +115,8 @@ def main(page: ft.Page):
                 content = f.read()
             
             new_lines = phrase_editor.value.split("\n")
-            # Creamos el formato con saltos de línea e indentación (4 espacios)
             formatted_phrases = "\n    " + ",\n    ".join([f'"{line.strip()}"' for line in new_lines if line.strip()]) + "\n"
             
-            # La expresión regular busca la variable y reemplaza lo que hay entre corchetes []
             pattern = rf"({var_dropdown.value}\s*=\s*\[)[\s\S]*?(\])"
             new_content = re.sub(pattern, rf"\1{formatted_phrases}\2", content)
             
@@ -142,39 +140,138 @@ def main(page: ft.Page):
     def build_sidebar():
         file_list_column.controls.clear()
         if os.path.exists(PHRASES_DIR):
-            for root, _, files in os.walk(PHRASES_DIR):
-                for file in files:
-                    if file.endswith(".py") and file != "__init__.py":
-                        p = os.path.join(root, file)
-                        display_name = file.replace(".py", "").upper()
-                        file_list_column.controls.append(ft.Container(content=ft.Row([ft.Icon(ft.Icons.CODE, size=16), ft.Text(display_name, size=11)]), padding=10, on_click=lambda e, path=p, lbl=file: select_file(path, lbl), ink=True))
+            # Listamos las carpetas dentro de phrases/
+            for folder in sorted(os.listdir(PHRASES_DIR)):
+                folder_path = os.path.join(PHRASES_DIR, folder)
+                
+                if os.path.isdir(folder_path):
+                    # Buscamos los archivos .py dentro de esa subcarpeta
+                    for file in sorted(os.listdir(folder_path)):
+                        if file.endswith(".py") and file != "__init__.py":
+                            p = os.path.join(folder_path, file)
+                            file_clean = file.replace(".py", "").upper()
+                            folder_clean = folder.upper()
+                            
+                            # Formato: CARPETA / ARCHIVO
+                            display_text = f"{folder_clean} / {file_clean}"
+                            
+                            # Color según carpeta para identificar visualmente
+                            tag_color = ft.Colors.BLUE_400
+                            if "social" in folder.lower(): tag_color = ft.Colors.PINK_400
+                            elif "bot" in folder.lower(): tag_color = ft.Colors.PURPLE_400
+                            elif "iracing" in folder.lower(): tag_color = ft.Colors.RED_400
+
+                            file_list_column.controls.append(
+                                ft.Container(
+                                    content=ft.Row([
+                                        ft.Icon(ft.Icons.FOLDER_OPEN_ROUNDED, size=14, color=tag_color),
+                                        ft.Text(display_text, size=11, weight="w500"),
+                                    ]),
+                                    padding=10,
+                                    on_click=lambda e, path=p, lbl=display_text: select_file(path, lbl),
+                                    ink=True,
+                                    border_radius=8,
+                                   # hover_color="#222222"
+                                )
+                            )
         page.update()
 
-    # --- LÓGICA SUBS ---
+    # --- LÓGICA SUBS CON EDICIÓN ---
     subs_view_column = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+
+    def update_sub_months(user_key, new_value):
+        try:
+            with open(SUBS_FILE, "r+", encoding="utf-8") as f:
+                data = json.load(f)
+                if user_key in data:
+                    data[user_key]["tenure"] = int(new_value)
+                    f.seek(0)
+                    json.dump(data, f, indent=4)
+                    f.truncate()
+            page.open(ft.SnackBar(ft.Text(f"✅ Meses de @{user_key} actualizados")))
+            refresh_subs_list() # Refrescar la vista
+        except Exception as ex:
+            page.open(ft.SnackBar(ft.Text(f"❌ Error al actualizar: {ex}")))
+
     def refresh_subs_list(e=None):
         subs_view_column.controls.clear()
         streamer_name = config_data["twitch"]["channel"] or "Streamer"
-        subs_view_column.controls.append(ft.Container(content=ft.Row([ft.Icon(ft.Icons.STARS, color=ft.Colors.AMBER, size=30), ft.Text(f"@{streamer_name.upper()} (Broadcaster)", size=16, weight="bold", color=ft.Colors.AMBER_200)]), padding=15, bgcolor="#2a2200", border_radius=10))
+        
+        subs_view_column.controls.append(
+            ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.STARS_ROUNDED, color=ft.Colors.AMBER, size=28),
+                    ft.Text(f"GESTIÓN DE SUBS - @{streamer_name.upper()}", size=14, weight="bold", color=ft.Colors.AMBER_200)
+                ]),
+                padding=10, bgcolor="#1a1a1a", border_radius=8, border=ft.border.all(1, "#333333")
+            )
+        )
+
         if os.path.exists(SUBS_FILE):
             try:
                 with open(SUBS_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     for user, info in data.items():
                         if user.lower() == streamer_name.lower(): continue
+                        
                         tier = info.get("tier", 1)
-                        raw_date = info.get("fecha", "")
-                        nice_date = "Fecha desconocida"
-                        if raw_date:
-                            try:
-                                dt = datetime.datetime.fromisoformat(raw_date.replace('Z', '+00:00'))
-                                nice_date = dt.strftime("%d/%m/%Y %H:%M")
-                            except: nice_date = raw_date[:10]
-                        tier_color = ft.Colors.GREEN_400
-                        if tier == 2: tier_color = ft.Colors.BLUE_400
-                        elif tier == 3: tier_color = ft.Colors.PURPLE_400
-                        subs_view_column.controls.append(ft.ListTile(leading=ft.Icon(ft.Icons.PERSON_PIN_ROUNDED, color=tier_color), title=ft.Text(f"@{user.upper()}", weight="bold"), subtitle=ft.Text(f"TIER {tier} • Suscrito el {nice_date}", size=12), trailing=ft.Icon(ft.Icons.V_SIGN_ROUNDED if tier == 3 else ft.Icons.STAR_ROUNDED, color=tier_color)))
-            except: pass
+                        # Priorizamos 'tenure' (meses totales)
+                        meses_totales = info.get("tenure", info.get("meses", 1))
+                        
+                        # Colores y Estilos por Tier
+                        if tier == 3:
+                            color_tier = ft.Colors.PURPLE_ACCENT_100
+                            bg_tier = "#2b0040"
+                            icono = ft.Icons.WORKSPACE_PREMIUM_ROUNDED
+                        elif tier == 2:
+                            color_tier = ft.Colors.BLUE_400
+                            bg_tier = "#001a33"
+                            icono = ft.Icons.V_SIGN_ROUNDED
+                        else:
+                            color_tier = ft.Colors.GREEN_400
+                            bg_tier = "#0d1a0d"
+                            icono = ft.Icons.PERSON_ROUNDED
+
+                        # Campo de entrada para editar meses
+                        meses_input = ft.TextField(
+                            value=str(meses_totales),
+                            width=65,
+                            height=35,
+                            text_size=12,
+                            content_padding=5,
+                            text_align=ft.TextAlign.CENTER,
+                            bgcolor="#1a1a1a",
+                            border_color=color_tier,
+                            on_submit=lambda e, u=user: update_sub_months(u, e.control.value)
+                        )
+
+                        subs_view_column.controls.append(
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(icono, color=color_tier, size=25),
+                                    ft.Column([
+                                        ft.Text(f"@{user.upper()}", weight="bold", size=13, color=color_tier),
+                                        ft.Text(f"Registrado: {info.get('fecha','')[:10]}", size=10, color=ft.Colors.GREY_400),
+                                    ], expand=True),
+                                    ft.Text("Meses:", size=11, color=ft.Colors.GREY_500),
+                                    meses_input,
+                                    ft.IconButton(
+                                        icon=ft.Icons.SAVE_ROUNDED,
+                                        icon_color=color_tier,
+                                        icon_size=20,
+                                        on_click=lambda e, u=user, i=meses_input: update_sub_months(u, i.value)
+                                    )
+                                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                                padding=10,
+                                bgcolor=bg_tier,
+                                border_radius=10,
+                                margin=ft.margin.only(top=5),
+                                border=ft.border.all(1, color_tier if tier == 3 else "#333333")
+                            )
+                        )
+            except Exception as ex:
+                add_log(f"SISTEMA: Error al procesar subs: {ex}", ft.Colors.RED)
+        
         page.update()
 
     # --- AJUSTES ---
@@ -193,7 +290,7 @@ def main(page: ft.Page):
 
     btn_power = ft.ElevatedButton("ENCENDER BOT", icon=ft.Icons.POWER_SETTINGS_NEW, on_click=toggle_bot, bgcolor=ft.Colors.BLUE_700, color="white", height=45)
 
-    # --- LAYOUT CORREGIDO ---
+    # --- LAYOUT PRINCIPAL ---
     page.add(
         ft.Container(padding=10, content=ft.Row([
             ft.Text("🏎️ FANTAN BOT PANEL", size=20, weight="bold"), 
