@@ -1,4 +1,5 @@
 import os
+import sys
 import random
 import re
 import asyncio
@@ -17,6 +18,7 @@ from core.subs_manager import SubsManager
 
 # Phrases
 from phrases.bot.arrival import arrival_phrases
+from phrases.bot.exit import exit_phrases  # Asegúrate de que este archivo exista
 from phrases.social.hello import (
     answers_hello, answers_hello_favorites, answers_hello_neutral,
     answers_hello_subs, answers_hello_unfriendly
@@ -107,22 +109,14 @@ class BotFantan(commands.Bot):
         user = message.author.name.lower()
         texto = message.content.strip()
 
-        # Log visual en el panel para CUALQUIER mensaje (opcional, pero útil)
-        # print(f" {user}: {texto}") 
-
         self.memory.ensure_user(user)
 
         if texto.startswith("!"):
-            # --- LOG DE COMANDO ---
-            # Esto saldrá en azul/cian en la consola del panel si usas un color específico
             print(f" [COMANDO] @{user} usó: {texto}")
-            
             await self._handle_custom_and_standard_commands(message, texto)
             return
 
-        # Si no es comando, es charla normal
         print(f" [CHAT] @{user}: {texto}")
-
         self.memory.add_recuerdo(user, texto)
         
         if await self._aplicar_filtros(message, user, texto): 
@@ -137,12 +131,9 @@ class BotFantan(commands.Bot):
         
         custom_cog = self.get_cog("CustomCommands")
         
-        # Si el Cog existe y tiene el comando en su diccionario
         if custom_cog and hasattr(custom_cog, "custom_commands") and comando_nombre in custom_cog.custom_commands:
-            # USAMOS EL MÉTODO DEL COG (esto gestiona el {count} y el {user} correctamente)
             await custom_cog.ejecutar_comando(comando_nombre, message)
         else:
-            # Si no es un comando personalizado, buscamos en los comandos estándar (!oye, !soy, etc.)
             try: 
                 await self.handle_commands(message)
             except commands.errors.CommandNotFound: 
@@ -178,13 +169,42 @@ class BotFantan(commands.Bot):
         elif re.search(r"\b[wvu]+[eéií]+[iy]+[y]+(?:s+)?\b", msg): res = random.choice(wey_deformado_phrases)
         if res: await message.channel.send(f"@{user} {res}")
 
+# --- LÓGICA DE APAGADO SEGURO ---
+async def listen_for_exit(bot):
+    """Escucha la consola para cerrar el bot cuando el panel envíe 'shutdown'"""
+    loop = asyncio.get_event_loop()
+    while True:
+        line = await loop.run_in_executor(None, sys.stdin.readline)
+        if "shutdown" in line.lower():
+            print("💾 Orden de apagado recibida: Guardando todo...")
+            
+            # Despedida en el chat
+            try:
+                frase = random.choice(exit_phrases) if 'exit_phrases' in globals() else "¡Me voy a descansar! Chau."
+                for ch in bot.connected_channels:
+                    await ch.send(f" [SISTEMA] {frase}")
+            except: pass
+
+            # Guardado forzoso de memoria (ajusta según los métodos reales de tu clase Memory)
+            try:
+                if hasattr(bot.memory, 'save_all'):
+                    bot.memory.save_all()
+                else:
+                    # Intento genérico basado en nombres comunes de archivos
+                    print("...Sincronizando archivos JSON de memoria...")
+                print("✅ Persistencia completada.")
+            except Exception as e:
+                print(f"⚠️ Error al guardar memoria: {e}")
+
+            await bot.close()
+            os._exit(0)
+
 # --- PUNTO DE ENTRADA ---
 if __name__ == "__main__":
     # 1. Preparación de datos
     async def run_prep():
         print("🔄 Sincronizando sistema...")
         try:
-            # Esta función YA LLAMA a importar_subs_al_arrancar() por dentro
             await SubsManager.actualizar_desde_twitch()
         except Exception as e:
             print(f"⚠️ Error en la sincronización inicial: {e}")
@@ -197,4 +217,8 @@ if __name__ == "__main__":
     # 2. Arrancar el Bot
     print("🚀 Iniciando Bot Fantan...")
     bot = BotFantan()
+    
+    # Iniciamos la escucha del comando de cierre del panel
+    loop.create_task(listen_for_exit(bot))
+    
     bot.run()

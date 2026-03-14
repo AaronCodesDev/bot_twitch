@@ -29,7 +29,7 @@ class Idea(commands.Cog):
 
         if not idea or not idea.strip():
             await ctx.send(
-                f"@{user}, escribe la idea para el sorteo… "
+                f"@{user}, escribe la idea para el sorteo… !idea <tu idea aquí> | "
                 "no soy adivino 📉 | El premio sube con las subs del mes. "
                 "Sin subs = premio triste."
             )

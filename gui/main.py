@@ -75,18 +75,35 @@ def main(page: ft.Page):
             try:
                 env = os.environ.copy()
                 env["PYTHONIOENCODING"] = "utf-8"
-                page.bot_process = subprocess.Popen([sys.executable, "-u", BOT_SCRIPT], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=BASE_DIR, env=env, encoding="utf-8")
+                # Añadimos stdin=subprocess.PIPE para poder enviarle órdenes
+                page.bot_process = subprocess.Popen(
+                    [sys.executable, "-u", BOT_SCRIPT], 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.STDOUT, 
+                    stdin=subprocess.PIPE, 
+                    text=True, 
+                    cwd=BASE_DIR, 
+                    env=env, 
+                    encoding="utf-8"
+                )
                 threading.Thread(target=lambda: [add_log(line) for line in iter(page.bot_process.stdout.readline, "")], daemon=True).start()
                 status_dot.bgcolor, status_text.value = ft.Colors.GREEN, "CONECTADO"
                 btn_power.text, btn_power.bgcolor = "DETENER BOT", ft.Colors.RED_700
                 add_log("SISTEMA: Bot encendido correctamente.", ft.Colors.GREEN_400)
             except Exception as ex: add_log(f"ERROR: {ex}", ft.Colors.RED)
         else:
-            page.bot_process.terminate()
+            try:
+                # En lugar de terminate(), enviamos la orden de apagado limpio
+                add_log("SISTEMA: Enviando orden de cierre limpio...", ft.Colors.AMBER)
+                page.bot_process.stdin.write("shutdown\n")
+                page.bot_process.stdin.flush()
+            except:
+                page.bot_process.terminate()
+            
             page.bot_process = None
             status_dot.bgcolor, status_text.value = ft.Colors.RED, "DESCONECTADO"
             btn_power.text, btn_power.bgcolor = "ENCENDER BOT", ft.Colors.BLUE_700
-            add_log("SISTEMA: Bot detenido por el usuario.", ft.Colors.ORANGE_400)
+            add_log("SISTEMA: Bot detenido.", ft.Colors.ORANGE_400)
         page.update()
 
     # --- LÓGICA FRASES ---
