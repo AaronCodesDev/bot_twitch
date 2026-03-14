@@ -31,7 +31,7 @@ def load_config():
 # --- INTERFAZ PRINCIPAL ---
 
 def main(page: ft.Page):
-    page.title = "FANTAN BOT - Dashboard"
+    page.title = "FANTAN BOT - Dashboard Ultra"
     page.theme_mode = ft.ThemeMode.DARK
     page.window.width = 1150
     page.window.height = 900
@@ -57,11 +57,15 @@ def main(page: ft.Page):
 
     # --- LÓGICA DE FUNCIONES ---
 
+    def clear_logs(e):
+        terminal_messages.controls.clear()
+        add_log("Consola limpiada", ft.Colors.BLUE_200)
+        page.update()
+
     def load_prompts_from_file():
         if os.path.exists(PROMPT_PATH):
             with open(PROMPT_PATH, "r", encoding="utf-8") as f:
                 content = f.read()
-                # Extraer contenido entre comillas usando regex
                 b = re.search(r'SYSTEM_BASE\s*=\s*"(.*?)"', content)
                 s = re.search(r'SYSTEM_SUB\s*=\s*"(.*?)"', content)
                 f_fav = re.search(r'SYSTEM_FAVORITO\s*=\s*"(.*?)"', content)
@@ -121,22 +125,20 @@ def main(page: ft.Page):
     def toggle_bot(e):
         if page.bot_process is None:
             try:
-                # 1. Configurar entorno para evitar errores de Emojis/Unicode en Windows
                 env = os.environ.copy()
                 env["PYTHONIOENCODING"] = "utf-8"
                 
                 for d in ['data/users', 'data/subs', 'data/save', 'data/backup']: 
                     os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
                 
-                # 2. Lanzar proceso con codificación explícita
                 page.bot_process = subprocess.Popen(
                     [sys.executable, "-u", BOT_SCRIPT], 
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.STDOUT, 
                     text=True, 
                     cwd=BASE_DIR,
-                    env=env,           # Aplica el entorno UTF-8
-                    encoding="utf-8"    # Fuerza la lectura de logs en UTF-8
+                    env=env,
+                    encoding="utf-8"
                 )
                 
                 threading.Thread(target=lambda: [add_log(line) for line in iter(page.bot_process.stdout.readline, "")], daemon=True).start()
@@ -203,7 +205,14 @@ def main(page: ft.Page):
     page.add(
         ft.Container(padding=10, content=ft.Row([ft.Text("🏎️ FANTAN BOT PANEL", size=20, weight="bold"), ft.Container(expand=True), status_dot, status_text])),
         ft.Tabs(selected_index=0, expand=1, tabs=[
-            ft.Tab(text="Monitor", icon=ft.Icons.TERMINAL, content=ft.Container(padding=20, content=ft.Column([ft.Container(content=terminal_messages, expand=True, bgcolor="#0d0d0d", padding=10, border_radius=10), ft.Row([ft.IconButton(ft.Icons.DELETE_SWEEP, on_click=lambda _: terminal_messages.controls.clear()), ft.Container(expand=True), btn_power])]))),
+            ft.Tab(text="Monitor", icon=ft.Icons.TERMINAL, content=ft.Container(padding=20, content=ft.Column([
+                ft.Container(content=terminal_messages, expand=True, bgcolor="#0d0d0d", padding=10, border_radius=10), 
+                ft.Row([
+                    ft.IconButton(ft.Icons.DELETE_SWEEP, on_click=clear_logs, icon_color=ft.Colors.GREY_500, tooltip="Limpiar Logs"), 
+                    ft.Container(expand=True), 
+                    btn_power
+                ])
+            ]))),
             ft.Tab(text="Frases", icon=ft.Icons.EDIT_NOTE, content=ft.Row([ft.Container(width=220, bgcolor="#121212", content=file_list_column, padding=15), ft.Container(expand=True, padding=25, content=ft.Column([ft.Row([var_dropdown, ft.ElevatedButton("GUARDAR", on_click=save_phrases_action, bgcolor=ft.Colors.GREEN_700)]), phrase_editor]))])),
             ft.Tab(text="Personalidad", icon=ft.Icons.PSYCHOLOGY, content=ft.Container(padding=25, content=ft.Column([
                 ft.Row([ft.Text("Define el comportamiento del Bot", weight="bold"), ft.Container(expand=True), ft.ElevatedButton("GUARDAR PERSONALIDAD", icon=ft.Icons.SAVE, on_click=save_prompts_action, bgcolor=ft.Colors.BLUE_700)]),
@@ -217,7 +226,7 @@ def main(page: ft.Page):
     )
     
     build_sidebar()
-    load_prompts_from_file() # Cargar los textos al iniciar
+    load_prompts_from_file()
     page.update()
 
 if __name__ == "__main__":
