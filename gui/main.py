@@ -121,13 +121,30 @@ def main(page: ft.Page):
     def toggle_bot(e):
         if page.bot_process is None:
             try:
+                # 1. Configurar entorno para evitar errores de Emojis/Unicode en Windows
+                env = os.environ.copy()
+                env["PYTHONIOENCODING"] = "utf-8"
+                
                 for d in ['data/users', 'data/subs', 'data/save', 'data/backup']: 
                     os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
-                page.bot_process = subprocess.Popen([sys.executable, "-u", BOT_SCRIPT], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=BASE_DIR)
+                
+                # 2. Lanzar proceso con codificación explícita
+                page.bot_process = subprocess.Popen(
+                    [sys.executable, "-u", BOT_SCRIPT], 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.STDOUT, 
+                    text=True, 
+                    cwd=BASE_DIR,
+                    env=env,           # Aplica el entorno UTF-8
+                    encoding="utf-8"    # Fuerza la lectura de logs en UTF-8
+                )
+                
                 threading.Thread(target=lambda: [add_log(line) for line in iter(page.bot_process.stdout.readline, "")], daemon=True).start()
+                
                 status_dot.bgcolor, status_text.value = ft.Colors.GREEN, "CONECTADO"
                 btn_power.text, btn_power.bgcolor = "DETENER BOT", ft.Colors.RED_700
-            except Exception as ex: add_log(f"ERROR: {ex}", ft.Colors.RED)
+            except Exception as ex: 
+                add_log(f"ERROR al encender: {ex}", ft.Colors.RED)
         else:
             page.bot_process.terminate()
             page.bot_process = None

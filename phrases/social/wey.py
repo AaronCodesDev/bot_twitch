@@ -8,7 +8,7 @@ wey_normal_phrases = [
     "¿Otra vez con el 'wey'? Qué creatividad la tuya.",
     "¿Dijiste 'wey'? Se nota que estudiaste en la universidad de TikTok.",
     "Tu uso de 'wey' me hace perder fe en el lenguaje.",
-    "'Wey', la evolución moderna del gruñido.",
+    "'Wey', la evolución moderna del gruñido."
 ]
 
 wey_estirado_phrases = [
