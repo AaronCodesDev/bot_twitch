@@ -12,12 +12,18 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 BOT_SCRIPT = os.path.join(BASE_DIR, "app.py")
 PHRASES_DIR = os.path.join(BASE_DIR, "phrases")
-PROMPT_PATH = os.path.join(BASE_DIR, "core", "prompt.py")
-
-# --- LÓGICA DE CARGA ---
+SUBS_FILE = os.path.join(BASE_DIR, "data", "subs", "subs_activos.json")
 
 def load_config():
-    base_config = {"openai": {"api_key": ""}, "twitch": {"token": "", "channel": "", "bot_name": "", "client_id": "", "client_secret": "", "bot_id": "", "client_id_bot": "", "token_bot": "", "broadcaster_id": ""}, "admin_users": []}
+    base_config = {
+        "openai": {"api_key": ""}, 
+        "twitch": {
+            "token": "", "channel": "", "bot_name": "", 
+            "client_id": "", "client_secret": "", "bot_id": "", 
+            "client_id_bot": "", "token_bot": "", "broadcaster_id": ""
+        }, 
+        "admin_users": []
+    }
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -28,89 +34,80 @@ def load_config():
         except: pass
     return base_config
 
-# --- INTERFAZ PRINCIPAL ---
-
 def main(page: ft.Page):
-    page.title = "FANTAN BOT - Dashboard Ultra"
+    page.title = "FANTAN BOT - Dashboard Pro Ultra"
     page.theme_mode = ft.ThemeMode.DARK
-    page.window.width = 1150
+    page.window.width = 1250
     page.window.height = 900
     
     page.bot_process = None
     config_data = load_config()
 
-    # --- COMPONENTES UI ---
+    # --- COMPONENTES MONITOR ---
+    terminal_messages = ft.ListView(expand=True, spacing=2, auto_scroll=True)
+    chat_messages = ft.ListView(expand=True, spacing=2, auto_scroll=True)
     status_dot = ft.CircleAvatar(bgcolor=ft.Colors.RED, radius=7)
     status_text = ft.Text("DESCONECTADO", color=ft.Colors.RED_400, weight="bold")
-    terminal_messages = ft.ListView(expand=True, spacing=2, auto_scroll=True)
-    
-    # Celdas de Personalidad Individuales
-    prompt_base = ft.TextField(label="SYSTEM_BASE (Público General)", multiline=True, min_lines=3)
-    prompt_sub = ft.TextField(label="SYSTEM_SUB (Suscriptores)", multiline=True, min_lines=3)
-    prompt_fav = ft.TextField(label="SYSTEM_FAVORITO (Favoritos)", multiline=True, min_lines=3)
-    
-    # Editor de Frases
+
+    # --- LÓGICA LOGS Y BOT ---
+    def add_log(message, color=ft.Colors.WHITE):
+        now = datetime.datetime.now().strftime("%H:%M:%S")
+        if message and message.strip():
+            msg_clean = message.strip()
+            if any(x in msg_clean for x in ["[CHAT]", "-> @", "!", "comando"]):
+                chat_messages.controls.append(ft.Text(f"[{now}] {msg_clean}", color=ft.Colors.GREEN_200, size=12))
+            else:
+                terminal_messages.controls.append(ft.Text(f"[{now}] {msg_clean}", color=color, size=12))
+            page.update()
+
+    # --- FUNCIONES DE LIMPIEZA CON AVISO ---
+    def clear_terminal(e):
+        terminal_messages.controls.clear()
+        add_log("SISTEMA: El registro de terminal ha sido vaciado por el usuario.", ft.Colors.AMBER_400)
+        page.update()
+
+    def clear_chat(e):
+        chat_messages.controls.clear()
+        add_log("SISTEMA: El historial de Chat y Comandos ha sido vaciado.", ft.Colors.CYAN_400)
+        page.update()
+
+    def toggle_bot(e):
+        if page.bot_process is None:
+            try:
+                env = os.environ.copy()
+                env["PYTHONIOENCODING"] = "utf-8"
+                page.bot_process = subprocess.Popen([sys.executable, "-u", BOT_SCRIPT], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=BASE_DIR, env=env, encoding="utf-8")
+                threading.Thread(target=lambda: [add_log(line) for line in iter(page.bot_process.stdout.readline, "")], daemon=True).start()
+                status_dot.bgcolor, status_text.value = ft.Colors.GREEN, "CONECTADO"
+                btn_power.text, btn_power.bgcolor = "DETENER", ft.Colors.RED_700
+                add_log("SISTEMA: Bot encendido correctamente.", ft.Colors.GREEN_400)
+            except Exception as ex: add_log(f"ERROR: {ex}", ft.Colors.RED)
+        else:
+            page.bot_process.terminate()
+            page.bot_process = None
+            status_dot.bgcolor, status_text.value = ft.Colors.RED, "DESCONECTADO"
+            btn_power.text, btn_power.bgcolor = "ENCENDER", ft.Colors.BLUE_700
+            add_log("SISTEMA: Bot detenido por el usuario.", ft.Colors.ORANGE_400)
+        page.update()
+
+    # --- LÓGICA FRASES ---
     phrase_editor = ft.TextField(multiline=True, expand=True, text_size=13, bgcolor="#1a1a1a")
     var_dropdown = ft.Dropdown(label="Categoría", expand=True)
     file_list_column = ft.Column(spacing=5, scroll=ft.ScrollMode.AUTO)
     current_file_path = ft.Text("", visible=False)
 
-    # --- LÓGICA DE FUNCIONES ---
-
-    def clear_logs(e):
-        terminal_messages.controls.clear()
-        add_log("Consola limpiada", ft.Colors.BLUE_200)
-        page.update()
-
-    def load_prompts_from_file():
-        if os.path.exists(PROMPT_PATH):
-            with open(PROMPT_PATH, "r", encoding="utf-8") as f:
-                content = f.read()
-                b = re.search(r'SYSTEM_BASE\s*=\s*"(.*?)"', content)
-                s = re.search(r'SYSTEM_SUB\s*=\s*"(.*?)"', content)
-                f_fav = re.search(r'SYSTEM_FAVORITO\s*=\s*"(.*?)"', content)
-                
-                prompt_base.value = b.group(1) if b else ""
-                prompt_sub.value = s.group(1) if s else ""
-                prompt_fav.value = f_fav.group(1) if f_fav else ""
-        page.update()
-
-    def save_prompts_action(e):
-        os.makedirs(os.path.dirname(PROMPT_PATH), exist_ok=True)
-        with open(PROMPT_PATH, "w", encoding="utf-8") as f:
-            f.write(f'SYSTEM_BASE = "{prompt_base.value}"\n')
-            f.write(f'SYSTEM_SUB = "{prompt_sub.value}"\n')
-            f.write(f'SYSTEM_FAVORITO = "{prompt_fav.value}"\n\n')
-            f.write('def get_system_message(nivel: str) -> str:\n    if nivel == "suscriptor": return SYSTEM_SUB\n')
-            f.write('    elif nivel == "favorito": return SYSTEM_FAVORITO\n    return SYSTEM_BASE\n\n')
-            f.write('def build_user_message(user: str, contexto: str, texto: str) -> str:\n')
-            f.write('    return (f"Diálogo previo con @{user}:\\n{contexto}\\n\\n" f"Mensaje actual: \\"{texto}\\"\\n" "⚠️ Responde en UNA sola frase corta y sarcástica.")\n')
-        page.open(ft.SnackBar(ft.Text("🧠 Personalidad guardada con éxito")))
-
     def load_phrases_from_file():
         if not current_file_path.value or not var_dropdown.value: return
-        with open(current_file_path.value, "r", encoding="utf-8") as f:
-            content = f.read()
-        pattern = rf"{var_dropdown.value}\s*=\s*\[([\s\S]*?)\]"
-        match = re.search(pattern, content)
-        if match:
-            phrases_raw = re.findall(r'["\']([\s\S]*?)["\']\s*(?:,|$)', match.group(1))
-            clean = [re.sub(r'\s+', ' ', p.replace("\n", " ").strip()) for p in phrases_raw if p.strip()]
-            phrase_editor.value = "\n".join(clean)
-        page.update()
-
-    def save_phrases_action(e):
-        if not current_file_path.value or not var_dropdown.value: return
-        lines = phrase_editor.value.split("\n")
-        phrases_to_save = [f'    "{l.strip().replace(chr(34), "\\\"")}"' for l in lines if l.strip()]
-        new_block = f"{var_dropdown.value} = [\n" + ",\n".join(phrases_to_save) + "\n]"
-        with open(current_file_path.value, "r", encoding="utf-8") as f:
-            content = f.read()
-        pattern = rf"{var_dropdown.value}\s*=\s*\[.*?\]"
-        updated = re.sub(pattern, new_block, content, flags=re.DOTALL)
-        with open(current_file_path.value, "w", encoding="utf-8") as f:
-            f.write(updated)
-        page.open(ft.SnackBar(ft.Text("✅ Frases guardadas")))
+        try:
+            with open(current_file_path.value, "r", encoding="utf-8") as f:
+                content = f.read()
+            pattern = rf"{var_dropdown.value}\s*=\s*\[([\s\S]*?)\]"
+            match = re.search(pattern, content)
+            if match:
+                phrases_raw = re.findall(r'["\']([\s\S]*?)["\']\s*(?:,|$)', match.group(1))
+                phrase_editor.value = "\n".join([p.strip() for p in phrases_raw if p.strip()])
+            page.update()
+        except: pass
 
     def select_file(path, label):
         current_file_path.value = path
@@ -122,74 +119,6 @@ def main(page: ft.Page):
         load_phrases_from_file()
         page.update()
 
-    def toggle_bot(e):
-        if page.bot_process is None:
-            try:
-                env = os.environ.copy()
-                env["PYTHONIOENCODING"] = "utf-8"
-                
-                for d in ['data/users', 'data/subs', 'data/save', 'data/backup']: 
-                    os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
-                
-                page.bot_process = subprocess.Popen(
-                    [sys.executable, "-u", BOT_SCRIPT], 
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.STDOUT, 
-                    text=True, 
-                    cwd=BASE_DIR,
-                    env=env,
-                    encoding="utf-8"
-                )
-                
-                threading.Thread(target=lambda: [add_log(line) for line in iter(page.bot_process.stdout.readline, "")], daemon=True).start()
-                
-                status_dot.bgcolor, status_text.value = ft.Colors.GREEN, "CONECTADO"
-                btn_power.text, btn_power.bgcolor = "DETENER BOT", ft.Colors.RED_700
-            except Exception as ex: 
-                add_log(f"ERROR al encender: {ex}", ft.Colors.RED)
-        else:
-            page.bot_process.terminate()
-            page.bot_process = None
-            status_dot.bgcolor, status_text.value = ft.Colors.RED, "DESCONECTADO"
-            btn_power.text, btn_power.bgcolor = "ENCENDER BOT", ft.Colors.BLUE_700
-        page.update()
-
-    def add_log(message, color=ft.Colors.WHITE):
-        now = datetime.datetime.now().strftime("%H:%M:%S")
-        if message and message.strip():
-            terminal_messages.controls.append(ft.Text(f"[{now}] {message.strip()}", color=color, size=12))
-            page.update()
-
-    def open_wizard(e):
-        curr = load_config()
-        w_fields = {
-            "api_key": ft.TextField(label="OpenAI Key", value=curr["openai"]["api_key"], password=True, can_reveal_password=True),
-            "token_bot": ft.TextField(label="Token Bot", value=curr["twitch"]["token_bot"], password=True),
-            "client_id_bot": ft.TextField(label="Client ID Bot", value=curr["twitch"]["client_id_bot"]),
-            "channel": ft.TextField(label="Channel", value=curr["twitch"]["channel"]),
-            "bot_name": ft.TextField(label="Bot Name", value=curr["twitch"]["bot_name"]),
-            "token": ft.TextField(label="Token Broadcaster", value=curr["twitch"]["token"], password=True),
-            "client_id": ft.TextField(label="Client ID Broadcaster", value=curr["twitch"]["client_id"]),
-            "broadcaster_id": ft.TextField(label="Broadcaster ID", value=curr["twitch"]["broadcaster_id"]),
-            "admins": ft.TextField(label="Admins (separados por coma)", value=", ".join(curr["admin_users"]))
-        }
-        def save_and_close(e):
-            config_data["openai"]["api_key"] = w_fields["api_key"].value
-            for k in ["token_bot", "client_id_bot", "channel", "bot_name", "token", "client_id", "broadcaster_id"]:
-                config_data["twitch"][k] = w_fields[k].value
-            config_data["admin_users"] = [a.strip() for a in w_fields["admins"].value.split(",") if a.strip()]
-            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump(config_data, f, indent=4, ensure_ascii=False)
-            page.close(wizard_dialog)
-            page.update()
-
-        wizard_dialog = ft.AlertDialog(
-            title=ft.Text("Ajustes"),
-            content=ft.Column([f for f in w_fields.values()], tight=True, scroll=ft.ScrollMode.AUTO, height=500),
-            actions=[ft.TextButton("Cancelar", on_click=lambda _: page.close(wizard_dialog)), ft.ElevatedButton("Guardar", on_click=save_and_close)]
-        )
-        page.open(wizard_dialog)
-
     def build_sidebar():
         file_list_column.controls.clear()
         if os.path.exists(PHRASES_DIR):
@@ -197,37 +126,146 @@ def main(page: ft.Page):
                 for file in files:
                     if file.endswith(".py") and file != "__init__.py":
                         p = os.path.join(root, file)
-                        l = os.path.relpath(p, PHRASES_DIR)
-                        file_list_column.controls.append(ft.Container(content=ft.Row([ft.Icon(ft.Icons.CODE, size=16), ft.Text(l.upper(), size=11)]), padding=10, on_click=lambda e, path=p, lbl=l: select_file(path, lbl), ink=True))
+                        display_name = file.replace(".py", "").upper()
+                        file_list_column.controls.append(
+                            ft.Container(
+                                content=ft.Row([ft.Icon(ft.Icons.CODE, size=16), ft.Text(display_name, size=11)]),
+                                padding=10, on_click=lambda e, path=p, lbl=file: select_file(path, lbl), ink=True
+                            )
+                        )
+        page.update()
 
-    btn_power = ft.ElevatedButton("ENCENDER BOT", icon=ft.Icons.POWER_SETTINGS_NEW, on_click=toggle_bot, bgcolor=ft.Colors.BLUE_700, color="white", height=50)
+    # --- LÓGICA SUBS ---
+    subs_view_column = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+# --- LÓGICA SUBS MEJORADA ---
+    def refresh_subs_list(e=None):
+        subs_view_column.controls.clear()
+        streamer_name = config_data["twitch"]["channel"] or "Streamer"
+        
+        # Cabecera del Streamer
+        subs_view_column.controls.append(
+            ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.STARS, color=ft.Colors.AMBER, size=30),
+                    ft.Text(f"@{streamer_name.upper()} (Broadcaster)", size=16, weight="bold", color=ft.Colors.AMBER_200)
+                ]),
+                padding=15, bgcolor="#2a2200", border_radius=10
+            )
+        )
 
+        if os.path.exists(SUBS_FILE):
+            try:
+                with open(SUBS_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    
+                    for user, info in data.items():
+                        if user.lower() == streamer_name.lower(): continue
+                        
+                        # Extraemos info extra si existe, si no ponemos 1 por defecto
+                        meses_totales = info.get("months", 1) if isinstance(info, dict) else "1"
+                        streak = info.get("streak", 0) if isinstance(info, dict) else None
+                        
+                        # Creamos subtítulo con la info de meses
+                        sub_info_text = f"Meses totales: {meses_totales}"
+                        if streak:
+                            sub_info_text += f"  |  Racha: {streak} 🔥"
+
+                        subs_view_column.controls.append(
+                            ft.ListTile(
+                                leading=ft.Icon(ft.Icons.PERSON_PIN_ROUNDED, color=ft.Colors.PINK_400),
+                                title=ft.Text(f"@{user.upper()}", weight="bold"),
+                                subtitle=ft.Text(sub_info_text, size=12, color=ft.Colors.GREY_400),
+                                trailing=ft.Icon(ft.Icons.MEDAL_ROUNDED, color=ft.Colors.AMBER_400 if int(meses_totales) >= 12 else ft.Colors.BLUE_GREY_400),
+                            )
+                        )
+            except Exception as ex:
+                add_log(f"SISTEMA: Error al leer base de datos de subs: {ex}", ft.Colors.RED)
+        
+        page.update()
+
+    # --- CAMPOS AJUSTES ---
+    def create_setting_field(label, value, config_key, sub_key=None):
+        is_secret = any(x in label.lower() for x in ["key", "token", "secret", "id"])
+        text_field = ft.TextField(label=label, value=str(value), height=45, text_size=12, expand=True, password=is_secret, can_reveal_password=is_secret)
+        def save_indiv(e):
+            if sub_key: config_data[config_key][sub_key] = text_field.value
+            else: config_data[config_key] = [a.strip() for a in text_field.value.split(",")] if config_key == "admin_users" else text_field.value
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f: json.dump(config_data, f, indent=4)
+            page.open(ft.SnackBar(ft.Text(f"✅ {label} guardado")))
+        return ft.Row([text_field, ft.IconButton(ft.Icons.SAVE, on_click=save_indiv, icon_color=ft.Colors.GREEN_400)])
+
+    ajustes_col_1 = ft.Column([
+        ft.Text("CONEXIÓN TWITCH", weight="bold", color=ft.Colors.BLUE_400),
+        create_setting_field("Canal", config_data["twitch"]["channel"], "twitch", "channel"),
+        create_setting_field("Nombre Bot", config_data["twitch"]["bot_name"], "twitch", "bot_name"),
+        create_setting_field("Broadcaster ID", config_data["twitch"]["broadcaster_id"], "twitch", "broadcaster_id"),
+        ft.Text("TOKENS BOT", weight="bold", color=ft.Colors.PURPLE_400),
+        create_setting_field("Token Bot", config_data["twitch"]["token_bot"], "twitch", "token_bot"),
+        create_setting_field("Client ID Bot", config_data["twitch"]["client_id_bot"], "twitch", "client_id_bot"),
+    ], expand=1, spacing=15)
+
+    ajustes_col_2 = ft.Column([
+        ft.Text("IA & ADMIN", weight="bold", color=ft.Colors.GREEN_400),
+        create_setting_field("OpenAI API Key", config_data["openai"]["api_key"], "openai", "api_key"),
+        create_setting_field("Admins (separar por coma)", ", ".join(config_data["admin_users"]), "admin_users"),
+        ft.Text("SEGURIDAD BROADCASTER", weight="bold", color=ft.Colors.RED_400),
+        create_setting_field("Token Broadcaster", config_data["twitch"]["token"], "twitch", "token"),
+        create_setting_field("Client ID Broadcaster", config_data["twitch"]["client_id"], "twitch", "client_id"),
+        create_setting_field("Client Secret", config_data["twitch"]["client_secret"], "twitch", "client_secret"),
+    ], expand=1, spacing=15)
+
+    btn_power = ft.ElevatedButton("ENCENDER BOT", icon=ft.Icons.POWER_SETTINGS_NEW, on_click=toggle_bot, bgcolor=ft.Colors.BLUE_700, color="white", height=45)
+
+    # --- LAYOUT FINAL ---
     page.add(
-        ft.Container(padding=10, content=ft.Row([ft.Text("🏎️ FANTAN BOT PANEL", size=20, weight="bold"), ft.Container(expand=True), status_dot, status_text])),
+        ft.Container(padding=10, content=ft.Row([
+            ft.Text("🏎️ BOT FANTAN PANEL", size=20, weight="bold"), 
+            ft.Container(expand=True), 
+            ft.Column([
+                ft.Row([status_dot, status_text], spacing=10),
+                ft.IconButton(ft.Icons.POWER_OFF_ROUNDED, icon_color=ft.Colors.RED_400, icon_size=20, tooltip="Cerrar Aplicación", on_click=lambda _: page.window.close(), padding=0)
+            ], horizontal_alignment=ft.CrossAxisAlignment.END, spacing=5)
+        ])),
         ft.Tabs(selected_index=0, expand=1, tabs=[
+            # MONITOR
             ft.Tab(text="Monitor", icon=ft.Icons.TERMINAL, content=ft.Container(padding=20, content=ft.Column([
-                ft.Container(content=terminal_messages, expand=True, bgcolor="#0d0d0d", padding=10, border_radius=10), 
                 ft.Row([
-                    ft.IconButton(ft.Icons.DELETE_SWEEP, on_click=clear_logs, icon_color=ft.Colors.GREY_500, tooltip="Limpiar Logs"), 
-                    ft.Container(expand=True), 
-                    btn_power
-                ])
+                    ft.Column([
+                        ft.Text("SISTEMA", weight="bold", size=12), 
+                        ft.Container(terminal_messages, expand=True, bgcolor="#0d0d0d", padding=10, border_radius=10, border=ft.border.all(1, ft.Colors.GREY_900)), 
+                        ft.Row([ft.Container(expand=True), ft.IconButton(ft.Icons.DELETE_OUTLINE, on_click=clear_terminal, tooltip="Limpiar Sistema")])
+                    ], expand=1),
+                    ft.Column([
+                        ft.Text("CHAT Y COMANDOS", weight="bold", size=12), 
+                        ft.Container(chat_messages, expand=True, bgcolor="#0d0d0d", padding=10, border_radius=10, border=ft.border.all(1, ft.Colors.GREY_900)), 
+                        ft.Row([ft.Container(expand=True), ft.IconButton(ft.Icons.DELETE_OUTLINE, on_click=clear_chat, tooltip="Limpiar Chat")])
+                    ], expand=1),
+                ], expand=True, spacing=20),
+                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                ft.Row([btn_power], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
             ]))),
-            ft.Tab(text="Frases", icon=ft.Icons.EDIT_NOTE, content=ft.Row([ft.Container(width=220, bgcolor="#121212", content=file_list_column, padding=15), ft.Container(expand=True, padding=25, content=ft.Column([ft.Row([var_dropdown, ft.ElevatedButton("GUARDAR", on_click=save_phrases_action, bgcolor=ft.Colors.GREEN_700)]), phrase_editor]))])),
-            ft.Tab(text="Personalidad", icon=ft.Icons.PSYCHOLOGY, content=ft.Container(padding=25, content=ft.Column([
-                ft.Row([ft.Text("Define el comportamiento del Bot", weight="bold"), ft.Container(expand=True), ft.ElevatedButton("GUARDAR PERSONALIDAD", icon=ft.Icons.SAVE, on_click=save_prompts_action, bgcolor=ft.Colors.BLUE_700)]),
-                ft.Divider(),
-                prompt_base,
-                prompt_sub,
-                prompt_fav
-            ], spacing=20))),
-            ft.Tab(text="Ajustes", icon=ft.Icons.SETTINGS, content=ft.Container(padding=40, content=ft.Column([ft.ElevatedButton("ABRIR WIZARD DE CONFIGURACIÓN", icon=ft.Icons.SETTINGS_SUGGEST, on_click=open_wizard, height=60, bgcolor=ft.Colors.PURPLE_800)], horizontal_alignment=ft.CrossAxisAlignment.CENTER)))
+            # FRASES
+            ft.Tab(text="Frases", icon=ft.Icons.EDIT_NOTE, content=ft.Row([
+                ft.Container(width=220, bgcolor="#121212", content=file_list_column, padding=15),
+                ft.Container(expand=True, padding=25, content=ft.Column([
+                    ft.Row([var_dropdown, ft.ElevatedButton("GUARDAR", on_click=lambda _: page.open(ft.SnackBar(ft.Text("✅ Guardado"))), bgcolor=ft.Colors.GREEN_700)]),
+                    phrase_editor
+                ]))
+            ])),
+            # SUBS
+            ft.Tab(text="Subs", icon=ft.Icons.STAR, content=ft.Container(padding=20, content=ft.Column([
+                ft.Row([ft.Text("LISTA DE SUSCRIPTORES", weight="bold"), ft.IconButton(ft.Icons.REFRESH, on_click=refresh_subs_list)]),
+                subs_view_column
+            ]))),
+            # AJUSTES
+            ft.Tab(text="Ajustes", icon=ft.Icons.SETTINGS, content=ft.Container(padding=30, content=ft.Column([
+                ft.Row([ajustes_col_1, ft.VerticalDivider(width=40), ajustes_col_2], expand=True, vertical_alignment=ft.CrossAxisAlignment.START)
+            ], scroll=ft.ScrollMode.AUTO)))
         ])
     )
     
-    build_sidebar()
-    load_prompts_from_file()
-    page.update()
+    build_sidebar(); refresh_subs_list(); page.update()
 
 if __name__ == "__main__":
     ft.app(target=main)

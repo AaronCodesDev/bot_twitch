@@ -59,8 +59,8 @@ class Memory:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4, ensure_ascii=False)
             os.replace(tmp, path)
-            if self.debug:
-                print(f"💾 Guardado {path}")
+            #if self.debug:
+            #   print(f"💾 Guardado {path}")
         except Exception as e:
             print(f"❌ Error al guardar {path}: {e}")
 

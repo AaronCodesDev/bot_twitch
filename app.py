@@ -100,17 +100,34 @@ class BotFantan(commands.Bot):
         self.iracing_listener = IRacingListener(self)
         asyncio.create_task(self.iracing_listener.start())
 
-    async def event_message(self, message):
+    async def event_message(self, message): 
         if message.echo or (message.author and message.author.name.lower() in self.BOTS_IGNORADOS):
             return
+
         user = message.author.name.lower()
         texto = message.content.strip()
+
+        # Log visual en el panel para CUALQUIER mensaje (opcional, pero útil)
+        # print(f" {user}: {texto}") 
+
         self.memory.ensure_user(user)
+
         if texto.startswith("!"):
+            # --- LOG DE COMANDO ---
+            # Esto saldrá en azul/cian en la consola del panel si usas un color específico
+            print(f" [COMANDO] @{user} usó: {texto}")
+            
             await self._handle_custom_and_standard_commands(message, texto)
             return
+
+        # Si no es comando, es charla normal
+        print(f" [CHAT] @{user}: {texto}")
+
         self.memory.add_recuerdo(user, texto)
-        if await self._aplicar_filtros(message, user, texto): return
+        
+        if await self._aplicar_filtros(message, user, texto): 
+            return
+            
         await self._procesar_social(message, user, texto)
 
     async def _handle_custom_and_standard_commands(self, message, texto):
