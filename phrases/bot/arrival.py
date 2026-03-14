@@ -18,5 +18,5 @@ arrival_phrases = [
     "Conectado. Si buscas cariño, sigue soñando… aquí solo hay pullas.",
     "Preparado para repartir verdades incómodas y humillaciones elegantes.",
     "El bot ha llegado. Tus esperanzas de ser gracioso son inútiles.",
-    "Hola humano, estoy aquí para arruinar tu día con estilo y sin piedad.",
+    "Hola humano, estoy aquí para arruinar tu día con estilo y sin piedad."
 ]
