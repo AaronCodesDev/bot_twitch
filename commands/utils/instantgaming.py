@@ -28,7 +28,7 @@ class InstantGaming(commands.Cog):
 
         while True:
             # Espera 5 minutos antes de enviar la primera frase
-            await asyncio.sleep(300)
+            await asyncio.sleep(900)
 
             channel = None
             # Espera hasta que el canal esté disponible en connected_channels
