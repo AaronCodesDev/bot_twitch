@@ -42,37 +42,38 @@ class SubsManager:
                 reader = csv.DictReader(f)
                 
                 for fila in reader:
-                    # Buscamos el nombre de usuario de forma flexible
                     usuario = (fila.get("Username") or fila.get("user_name") or "").lower().strip()
-                    
-                    # --- REGLA DE PRUEBA ---
-                    # Hemos quitado el filtro 'usuario == CUENTA_PROPIA' 
-                    # para que 'fantan' SÍ sea contado como suscriptor.
                     if not usuario: 
                         continue
 
                     fecha_str = fila.get("Subscribe Date")
                     tier_label = fila.get("Current Tier", "Tier 1")
+                    
+                    # --- NUEVO: CAPTURAR MESES ---
+                    # Twitch usa "Cumulative Months" o "Tenure" según la versión de la API
+                    meses_raw = fila.get("Cumulative Months") or fila.get("Tenure") or "1"
+                    try:
+                        meses = int(meses_raw)
+                    except:
+                        meses = 1
 
                     try:
-                        # Si hay fecha la usamos, si no, ponemos la de ahora
                         fecha_iso = fecha_str.replace("Z", "+00:00") if fecha_str else ahora.isoformat()
                         
-                        # Mapeo de Tier
                         tier = 1
                         if "3" in str(tier_label): tier = 3
                         elif "2" in str(tier_label): tier = 2
                         
                         activos_actualizados[usuario] = {
                             "fecha": fecha_iso, 
-                            "tier": tier
+                            "tier": tier,
+                            "meses": meses # <-- Guardamos los meses aquí
                         }
                     except:
-                        activos_actualizados[usuario] = {"fecha": ahora.isoformat(), "tier": 1}
+                        activos_actualizados[usuario] = {"fecha": ahora.isoformat(), "tier": 1, "meses": 1}
 
-            # Guardamos el JSON que lee el bot
             guardar_json(SUBS_FILE, activos_actualizados)
-            print(f"✅ IMPORTACIÓN EXITOSA: {len(activos_actualizados)} subs activos detectados.")
+            print(f"✅ IMPORTACIÓN EXITOSA: {len(activos_actualizados)} subs activos detectados con meses.")
 
         except Exception as e:
             print(f"❌ Error leyendo el CSV: {e}")
@@ -88,6 +89,8 @@ class SubsManager:
                 t_val = int(tier)
                 tier_num = t_val // 1000 if t_val >= 1000 else t_val
             except: tier_num = 1
-            subs_activos[target] = {'fecha': ahora.isoformat(), 'tier': tier_num}
+            # Cuando es en vivo, asumimos que empieza o mantiene sus meses (puedes ajustarlo si quieres)
+            meses_actuales = subs_activos.get(target, {}).get("meses", 1)
+            subs_activos[target] = {'fecha': ahora.isoformat(), 'tier': tier_num, 'meses': meses_actuales}
             guardar_json(SUBS_FILE, subs_activos)
             print(f"✨ Sub en vivo guardada: {target}")

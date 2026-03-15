@@ -6,13 +6,28 @@ import subprocess
 import threading
 import sys
 import re
+import asyncio
 
 # --- CONFIGURACIÓN DE RUTAS ---
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+
+# Forzamos a Python a incluir la raíz del proyecto para encontrar la carpeta /core
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 BOT_SCRIPT = os.path.join(BASE_DIR, "app.py")
 PHRASES_DIR = os.path.join(BASE_DIR, "phrases")
-SUBS_FILE = os.path.join(BASE_DIR, "data", "subs", "subs_activos.json")
+SUBS_FILE = os.path.join(BASE_DIR, "data", "subs", "subscriptores_activos.json")
+
+# Intentamos importar el SubsManager con la ruta corregida
+try:
+    from core.subs_manager import SubsManager
+    print("✅ SubsManager cargado correctamente.")
+except ImportError as e:
+    print(f"❌ Error al importar SubsManager: {e}")
+    SubsManager = None
 
 def load_config():
     base_config = {
@@ -75,7 +90,6 @@ def main(page: ft.Page):
             try:
                 env = os.environ.copy()
                 env["PYTHONIOENCODING"] = "utf-8"
-                # Añadimos stdin=subprocess.PIPE para poder enviarle órdenes
                 page.bot_process = subprocess.Popen(
                     [sys.executable, "-u", BOT_SCRIPT], 
                     stdout=subprocess.PIPE, 
@@ -87,21 +101,26 @@ def main(page: ft.Page):
                     encoding="utf-8"
                 )
                 threading.Thread(target=lambda: [add_log(line) for line in iter(page.bot_process.stdout.readline, "")], daemon=True).start()
-                status_dot.bgcolor, status_text.value = ft.Colors.GREEN, "CONECTADO"
+                
+                # Actualización visual: Verde
+                status_dot.bgcolor = ft.Colors.GREEN
+                status_text.value = "CONECTADO"
+                status_text.color = ft.Colors.GREEN_400
                 btn_power.text, btn_power.bgcolor = "DETENER BOT", ft.Colors.RED_700
                 add_log("SISTEMA: Bot encendido correctamente.", ft.Colors.GREEN_400)
             except Exception as ex: add_log(f"ERROR: {ex}", ft.Colors.RED)
         else:
             try:
-                # En lugar de terminate(), enviamos la orden de apagado limpio
-                add_log("SISTEMA: Enviando orden de cierre limpio...", ft.Colors.AMBER)
                 page.bot_process.stdin.write("shutdown\n")
                 page.bot_process.stdin.flush()
             except:
                 page.bot_process.terminate()
             
             page.bot_process = None
-            status_dot.bgcolor, status_text.value = ft.Colors.RED, "DESCONECTADO"
+            # Actualización visual: Rojo
+            status_dot.bgcolor = ft.Colors.RED
+            status_text.value = "DESCONECTADO"
+            status_text.color = ft.Colors.RED_400
             btn_power.text, btn_power.bgcolor = "ENCENDER BOT", ft.Colors.BLUE_700
             add_log("SISTEMA: Bot detenido.", ft.Colors.ORANGE_400)
         page.update()
@@ -130,16 +149,12 @@ def main(page: ft.Page):
         try:
             with open(current_file_path.value, "r", encoding="utf-8") as f:
                 content = f.read()
-            
             new_lines = phrase_editor.value.split("\n")
             formatted_phrases = "\n    " + ",\n    ".join([f'"{line.strip()}"' for line in new_lines if line.strip()]) + "\n"
-            
             pattern = rf"({var_dropdown.value}\s*=\s*\[)[\s\S]*?(\])"
             new_content = re.sub(pattern, rf"\1{formatted_phrases}\2", content)
-            
             with open(current_file_path.value, "w", encoding="utf-8") as f:
                 f.write(new_content)
-            
             page.open(ft.SnackBar(ft.Text(f"✅ Guardado con éxito en {var_dropdown.value}")))
         except Exception as ex:
             page.open(ft.SnackBar(ft.Text(f"❌ Error al guardar: {ex}")))
@@ -157,140 +172,102 @@ def main(page: ft.Page):
     def build_sidebar():
         file_list_column.controls.clear()
         if os.path.exists(PHRASES_DIR):
-            # Listamos las carpetas dentro de phrases/
             for folder in sorted(os.listdir(PHRASES_DIR)):
                 folder_path = os.path.join(PHRASES_DIR, folder)
-                
                 if os.path.isdir(folder_path):
-                    # Buscamos los archivos .py dentro de esa subcarpeta
                     for file in sorted(os.listdir(folder_path)):
                         if file.endswith(".py") and file != "__init__.py":
                             p = os.path.join(folder_path, file)
-                            file_clean = file.replace(".py", "").upper()
-                            folder_clean = folder.upper()
-                            
-                            # Formato: CARPETA / ARCHIVO
-                            display_text = f"{folder_clean} / {file_clean}"
-                            
-                            # Color según carpeta para identificar visualmente
+                            display_text = f"{folder.upper()} / {file.replace('.py', '').upper()}"
                             tag_color = ft.Colors.BLUE_400
                             if "social" in folder.lower(): tag_color = ft.Colors.PINK_400
                             elif "bot" in folder.lower(): tag_color = ft.Colors.PURPLE_400
-                            elif "iracing" in folder.lower(): tag_color = ft.Colors.RED_400
-
                             file_list_column.controls.append(
                                 ft.Container(
-                                    content=ft.Row([
-                                        ft.Icon(ft.Icons.FOLDER_OPEN_ROUNDED, size=14, color=tag_color),
-                                        ft.Text(display_text, size=11, weight="w500"),
-                                    ]),
-                                    padding=10,
-                                    on_click=lambda e, path=p, lbl=display_text: select_file(path, lbl),
-                                    ink=True,
-                                    border_radius=8,
-                                   # hover_color="#222222"
+                                    content=ft.Row([ft.Icon(ft.Icons.FOLDER_OPEN_ROUNDED, size=14, color=tag_color), ft.Text(display_text, size=11, weight="w500")]),
+                                    padding=10, on_click=lambda e, path=p, lbl=display_text: select_file(path, lbl),
+                                    ink=True, border_radius=8
                                 )
                             )
         page.update()
 
-    # --- LÓGICA SUBS CON EDICIÓN ---
+    # --- LÓGICA SUBS CORREGIDA (Hilos + Async) ---
     subs_view_column = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
 
-    def update_sub_months(user_key, new_value):
-        try:
-            with open(SUBS_FILE, "r+", encoding="utf-8") as f:
-                data = json.load(f)
-                if user_key in data:
-                    data[user_key]["tenure"] = int(new_value)
-                    f.seek(0)
-                    json.dump(data, f, indent=4)
-                    f.truncate()
-            page.open(ft.SnackBar(ft.Text(f"✅ Meses de @{user_key} actualizados")))
-            refresh_subs_list() # Refrescar la vista
-        except Exception as ex:
-            page.open(ft.SnackBar(ft.Text(f"❌ Error al actualizar: {ex}")))
+    def run_sync_task(e):
+        def sync_worker():
+            async def sync():
+                if SubsManager is None:
+                    add_log("ERROR: No se encontró SubsManager en core/subs_manager.py", ft.Colors.RED)
+                    return
+                add_log("SISTEMA: Sincronizando subs con la API de Twitch...", ft.Colors.AMBER)
+                try:
+                    await SubsManager.actualizar_desde_twitch()
+                    add_log("SISTEMA: ¡Sincronización completada!", ft.Colors.GREEN_400)
+                    refresh_subs_list()
+                except Exception as ex:
+                    add_log(f"ERROR al sincronizar: {ex}", ft.Colors.RED)
+            
+            asyncio.run(sync())
+        
+        # Ejecutamos en un hilo separado para no congelar la app de Flet
+        threading.Thread(target=sync_worker, daemon=True).start()
 
     def refresh_subs_list(e=None):
-        subs_view_column.controls.clear()
-        streamer_name = config_data["twitch"]["channel"] or "Streamer"
-        
-        subs_view_column.controls.append(
-            ft.Container(
-                content=ft.Row([
-                    ft.Icon(ft.Icons.STARS_ROUNDED, color=ft.Colors.AMBER, size=28),
-                    ft.Text(f"GESTIÓN DE SUBS - @{streamer_name.upper()}", size=14, weight="bold", color=ft.Colors.AMBER_200)
-                ]),
-                padding=10, bgcolor="#1a1a1a", border_radius=8, border=ft.border.all(1, "#333333")
-            )
-        )
-
-        if os.path.exists(SUBS_FILE):
-            try:
-                with open(SUBS_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    for user, info in data.items():
-                        if user.lower() == streamer_name.lower(): continue
-                        
+            subs_view_column.controls.clear()
+            if os.path.exists(SUBS_FILE):
+                try:
+                    with open(SUBS_FILE, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    
+                    for user, info in sorted(data.items()):
                         tier = info.get("tier", 1)
-                        # Priorizamos 'tenure' (meses totales)
-                        meses_totales = info.get("tenure", info.get("meses", 1))
+                        meses = info.get("meses", 1) # Obtenemos los meses (por defecto 1)
                         
-                        # Colores y Estilos por Tier
-                        if tier == 3:
-                            color_tier = ft.Colors.PURPLE_ACCENT_100
-                            bg_tier = "#2b0040"
-                            icono = ft.Icons.WORKSPACE_PREMIUM_ROUNDED
-                        elif tier == 2:
-                            color_tier = ft.Colors.BLUE_400
-                            bg_tier = "#001a33"
-                            icono = ft.Icons.V_SIGN_ROUNDED
-                        else:
-                            color_tier = ft.Colors.GREEN_400
-                            bg_tier = "#0d1a0d"
-                            icono = ft.Icons.PERSON_ROUNDED
+                        # --- LÓGICA DE FECHA Y HORA EUROPEA ---
+                        fecha_iso = info.get("fecha", "")
+                        try:
+                            y, m, d = fecha_iso[:10].split("-")
+                            hora = fecha_iso[11:16]
+                            fecha_final = f"{d}/{m}/{y} ({hora}hs)"
+                        except:
+                            fecha_final = fecha_iso
 
-                        # Campo de entrada para editar meses
-                        meses_input = ft.TextField(
-                            value=str(meses_totales),
-                            width=65,
-                            height=35,
-                            text_size=12,
-                            content_padding=5,
-                            text_align=ft.TextAlign.CENTER,
-                            bgcolor="#1a1a1a",
-                            border_color=color_tier,
-                            on_submit=lambda e, u=user: update_sub_months(u, e.control.value)
-                        )
+                        color_tier = ft.Colors.PURPLE_ACCENT_100 if tier == 3 else ft.Colors.BLUE_400 if tier == 2 else ft.Colors.GREEN_400
+                        bg_tier = "#2b0040" if tier == 3 else "#001a33" if tier == 2 else "#0d1a0d"
 
                         subs_view_column.controls.append(
                             ft.Container(
                                 content=ft.Row([
-                                    ft.Icon(icono, color=color_tier, size=25),
+                                    ft.Icon(ft.Icons.PERSON_ROUNDED, color=color_tier, size=25),
                                     ft.Column([
-                                        ft.Text(f"@{user.upper()}", weight="bold", size=13, color=color_tier),
-                                        ft.Text(f"Registrado: {info.get('fecha','')[:10]}", size=10, color=ft.Colors.GREY_400),
-                                    ], expand=True),
-                                    ft.Text("Meses:", size=11, color=ft.Colors.GREY_500),
-                                    meses_input,
-                                    ft.IconButton(
-                                        icon=ft.Icons.SAVE_ROUNDED,
-                                        icon_color=color_tier,
-                                        icon_size=20,
-                                        on_click=lambda e, u=user, i=meses_input: update_sub_months(u, i.value)
+                                        ft.Row([
+                                            ft.Text(f"@{user.upper()}", weight="bold", size=13, color=color_tier),
+                                            # Etiqueta de meses
+                                            ft.Container(
+                                                content=ft.Text(f" {meses} MESES ", size=9, weight="bold", color=ft.Colors.BLACK),
+                                                bgcolor=color_tier,
+                                                border_radius=5,
+                                                padding=2
+                                            ) if meses > 1 else ft.Text("NUEVO", size=9, color=ft.Colors.GREY_500)
+                                        ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                                        ft.Text(f"Suscrito: {fecha_final}", size=10, color=ft.Colors.GREY_400)
+                                    ], expand=True, spacing=2),
+                                    ft.Container(
+                                        content=ft.Text(f"TIER {tier}", size=10, weight="bold"),
+                                        padding=ft.padding.all(5),
+                                        border_radius=5,
+                                        bgcolor=ft.Colors.with_opacity(0.2, color_tier)
                                     )
                                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                                padding=10,
-                                bgcolor=bg_tier,
-                                border_radius=10,
-                                margin=ft.margin.only(top=5),
-                                border=ft.border.all(1, color_tier if tier == 3 else "#333333")
+                                padding=10, bgcolor=bg_tier, border_radius=10, margin=ft.margin.only(top=5), border=ft.border.all(1, "#333333")
                             )
                         )
-            except Exception as ex:
-                add_log(f"SISTEMA: Error al procesar subs: {ex}", ft.Colors.RED)
-        
-        page.update()
-
+                except Exception as ex: 
+                    add_log(f"ERROR leyendo subs: {ex}", ft.Colors.RED)
+            
+            page.update()
+            
     # --- AJUSTES ---
     def create_setting_field(label, value, config_key, sub_key=None):
         is_secret = any(x in label.lower() for x in ["key", "token", "secret", "id"])
@@ -312,10 +289,7 @@ def main(page: ft.Page):
         ft.Container(padding=10, content=ft.Row([
             ft.Text("🏎️ FANTAN BOT PANEL", size=20, weight="bold"), 
             ft.Container(expand=True), 
-            ft.Column([
-                ft.Row([status_dot, status_text], spacing=10),
-                ft.IconButton(ft.Icons.POWER_OFF_ROUNDED, icon_color=ft.Colors.RED_400, icon_size=20, on_click=lambda _: page.window.close(), padding=0)
-            ], horizontal_alignment=ft.CrossAxisAlignment.END, spacing=5)
+            ft.Column([ft.Row([status_dot, status_text], spacing=10), ft.IconButton(ft.Icons.POWER_OFF_ROUNDED, icon_color=ft.Colors.RED_400, on_click=lambda _: page.window.close(), padding=0)], horizontal_alignment=ft.CrossAxisAlignment.END, spacing=5)
         ])),
         ft.Tabs(selected_index=0, expand=1, tabs=[
             ft.Tab(text="Monitor", icon=ft.Icons.TERMINAL, content=ft.Container(padding=20, content=ft.Column([
@@ -323,19 +297,20 @@ def main(page: ft.Page):
                     ft.Column([ft.Text("SISTEMA", weight="bold", size=12), ft.Container(terminal_messages, expand=True, bgcolor="#0d0d0d", padding=10, border_radius=10, border=ft.border.all(1, ft.Colors.GREY_900)), ft.Row([ft.Container(expand=True), ft.IconButton(ft.Icons.DELETE_OUTLINE, on_click=clear_terminal)])], expand=1), 
                     ft.Column([ft.Text("CHAT Y COMANDOS", weight="bold", size=12), ft.Container(chat_messages, expand=True, bgcolor="#0d0d0d", padding=10, border_radius=10, border=ft.border.all(1, ft.Colors.GREY_900)), ft.Row([ft.Container(expand=True), ft.IconButton(ft.Icons.DELETE_OUTLINE, on_click=clear_chat)])], expand=1)
                 ], expand=True, spacing=20),
-                ft.Divider(height=10, color=ft.Colors.TRANSPARENT), 
-                ft.Row([btn_power], alignment=ft.MainAxisAlignment.CENTER), 
-                ft.Divider(height=10, color=ft.Colors.TRANSPARENT)
+                ft.Row([btn_power], alignment=ft.MainAxisAlignment.CENTER)
             ]))),
             ft.Tab(text="Frases", icon=ft.Icons.EDIT_NOTE, content=ft.Row([
                 ft.Container(width=220, bgcolor="#121212", content=file_list_column, padding=15), 
-                ft.Container(expand=True, padding=25, content=ft.Column([
-                    ft.Row([var_dropdown, ft.ElevatedButton("GUARDAR", on_click=save_phrases_to_file, bgcolor=ft.Colors.GREEN_700)]), 
-                    phrase_editor
-                ]))
+                ft.Container(expand=True, padding=25, content=ft.Column([ft.Row([var_dropdown, ft.ElevatedButton("GUARDAR", on_click=save_phrases_to_file, bgcolor=ft.Colors.GREEN_700)]), phrase_editor]))
             ])),
             ft.Tab(text="Subs", icon=ft.Icons.STAR, content=ft.Container(padding=20, content=ft.Column([
-                ft.Row([ft.Text("LISTA DE SUSCRIPTORES", weight="bold"), ft.IconButton(ft.Icons.REFRESH, on_click=refresh_subs_list)]), 
+                ft.Row([
+                    ft.Text("LISTA DE SUSCRIPTORES", weight="bold"), 
+                    ft.Row([
+                        ft.ElevatedButton("SINCRONIZAR TWITCH", icon=ft.Icons.SYNC, on_click=run_sync_task, bgcolor=ft.Colors.PURPLE_700, color="white"),
+                        ft.IconButton(ft.Icons.REFRESH, on_click=refresh_subs_list)
+                    ])
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), 
                 subs_view_column
             ]))),
             ft.Tab(text="Ajustes", icon=ft.Icons.SETTINGS, content=ft.Container(padding=30, content=ft.Column([
