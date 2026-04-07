@@ -51,6 +51,10 @@ class TwitchView:
             expand=True, spacing=3, auto_scroll=True,
             padding=ft.padding.all(8),
         )
+        self._chat_list = ft.ListView(
+            expand=True, spacing=3, auto_scroll=True,
+            padding=ft.padding.all(8),
+        )
         self._tabs_ref = ft.Ref[ft.Tabs]()
 
     # ─── Datos ────────────────────────────────────────────────────────────────
@@ -196,32 +200,51 @@ class TwitchView:
     def _build_monitor_tab(self) -> ft.Container:
         self._add_log("Sistema listo — esperando actividad", "info")
 
-        clear_btn = ft.IconButton(
-            icon=ft.Icons.DELETE_SWEEP_OUTLINED,
-            icon_color=MUTED,
-            tooltip="Limpiar logs",
-            on_click=lambda e: (
-                self._log_list.controls.clear(),
-                self.page.update(),
-            ),
-        )
+        def _panel(title, accent, list_ctrl, on_clear):
+            return ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Text(title, size=11, color=accent,
+                                            weight=ft.FontWeight.W_600),
+                            border=ft.border.only(left=ft.BorderSide(2, accent)),
+                            padding=ft.padding.only(left=8),
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.DELETE_SWEEP_OUTLINED,
+                            icon_color=MUTED, icon_size=16,
+                            tooltip="Limpiar",
+                            on_click=on_clear,
+                        ),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ft.Container(
+                        content=list_ctrl,
+                        bgcolor=BG,
+                        border_radius=10,
+                        border=ft.border.all(1, BORDER2),
+                        expand=True,
+                        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                    ),
+                ], spacing=6, expand=True),
+                expand=True,
+            )
+
+        def clear_console(e):
+            self._log_list.controls.clear()
+            self.page.update()
+
+        def clear_chat(e):
+            self._chat_list.controls.clear()
+            self.page.update()
 
         return ft.Container(
             content=ft.Column([
                 ft.Container(height=12),
                 ft.Row([
-                    section_title("Log en tiempo real", accent=PURPLE),
-                    clear_btn,
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ft.Container(height=8),
-                ft.Container(
-                    content=self._log_list,
-                    bgcolor=BG,
-                    border_radius=12,
-                    border=ft.border.all(1, BORDER2),
-                    expand=True,
-                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                ),
+                    _panel("🖥️  Consola", CYAN,   self._log_list,  clear_console),
+                    ft.Container(width=10),
+                    _panel("💬  Chat Twitch", PURPLE, self._chat_list, clear_chat),
+                ], spacing=0, expand=True),
             ], spacing=0, expand=True),
             padding=ft.padding.only(top=4),
             expand=True,
@@ -844,36 +867,117 @@ class TwitchView:
 
     # ─── Bot control ──────────────────────────────────────────────────────────
     def _start_bot(self):
-        if BOT_BASE not in sys.path:
-            sys.path.insert(0, BOT_BASE)
+        import subprocess
+        bot_script = os.path.join(BOT_BASE, "app.py")
 
-        def run():
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                from app import BotFantan
-                bot = BotFantan()
-                self.state["_bot_instance"] = bot
-                self._add_log("🚀 Conectando a Twitch...", "info")
-                bot.run()
-            except Exception as ex:
-                self._add_log(f"❌ Error: {ex}", "error")
+        try:
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "utf-8"
 
-        t = threading.Thread(target=run, daemon=True)
-        t.start()
-        self.state["_bot_thread"] = t
+            proc = subprocess.Popen(
+                [sys.executable, "-u", bot_script],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=BOT_BASE,
+                env=env,
+                encoding="utf-8",
+            )
+            self.state["_bot_process"] = proc
+            self._add_log("🚀 Conectando a Twitch...", "info")
+
+            def read_output():
+                for line in iter(proc.stdout.readline, ""):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    is_chat = any(x in line for x in ["[CHAT]", "[COMANDO]", "-> @"])
+                    if is_chat:
+                        self._add_chat(line)
+                    else:
+                        level = "error" if any(x in line.lower() for x in ["error", "traceback", "exception"]) else "info"
+                        self._add_log(line, level)
+
+            t = threading.Thread(target=read_output, daemon=True)
+            t.start()
+            self.state["_bot_thread"] = t
+
+        except Exception as ex:
+            self._add_log(f"❌ Error al iniciar el bot: {ex}", "error")
 
     def _stop_bot(self):
         try:
-            bot = self.state.get("_bot_instance")
-            if bot and hasattr(bot, "_ws"):
-                pass  # TwitchIO se cierra al terminar el thread daemon
+            proc = self.state.get("_bot_process")
+            if proc:
+                proc.terminate()
+                self.state["_bot_process"] = None
         except Exception:
             pass
 
     def _add_log(self, message: str, level: str = "info"):
         now = datetime.datetime.now().strftime("%H:%M:%S")
         self._log_list.controls.append(log_item(now, message, level))
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _add_chat(self, raw_line: str):
+        """Renderiza una línea de chat coloreando comandos y @menciones."""
+        now = datetime.datetime.now().strftime("%H:%M:%S")
+
+        # Detectar tipo y parsear formato
+        # [CHAT] @user: mensaje
+        # [COMANDO] @user usó: !comando
+        is_command = "[COMANDO]" in raw_line
+        line = raw_line.replace("[CHAT]", "").replace("[COMANDO]", "").strip()
+
+        if ":" in line:
+            username, _, message = line.partition(":")
+            username = username.replace("usó", "").strip().lstrip("@")
+            message  = message.strip()
+        else:
+            username = ""
+            message  = line
+        has_mention = "@" in message
+
+        # Color del mensaje
+        if is_command:
+            msg_color  = WARNING
+            msg_weight = ft.FontWeight.W_600
+        elif has_mention:
+            msg_color  = CYAN
+            msg_weight = ft.FontWeight.W_500
+        else:
+            msg_color  = TEXT
+            msg_weight = ft.FontWeight.W_400
+
+        item = ft.Container(
+            content=ft.Row([
+                ft.Text(f"[{now}]", size=10, color=MUTED, width=55),
+                ft.Text(
+                    f"{username}:" if username else "",
+                    size=11, color=PURPLE,
+                    weight=ft.FontWeight.W_700,
+                    width=90 if username else 0,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                ),
+                ft.Text(
+                    message, size=11,
+                    color=msg_color,
+                    weight=msg_weight,
+                    expand=True,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                ),
+            ], spacing=6),
+            padding=ft.padding.symmetric(horizontal=10, vertical=4),
+            border_radius=6,
+            bgcolor=with_alpha(WARNING, 0.04) if is_command else (
+                with_alpha(CYAN, 0.04) if has_mention else None
+            ),
+        )
+
+        self._chat_list.controls.append(item)
         try:
             self.page.update()
         except Exception:

@@ -1,5 +1,5 @@
 # --- Python ---
-__pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -7,9 +7,12 @@ __pycache__/
 # --- Virtual env ---
 venv/
 .env/
+.venv/
 
-# --- Config ---
+# --- Config (credenciales) ---
 config.json
+**/config.json
+.env
 
 # --- Builds ---
 build/
@@ -22,7 +25,7 @@ dist/
 logs/
 
 # --- IDEs ---
-/.vscode/
+.vscode/
 .idea/
 
 # --- Runtime data ---
@@ -34,8 +37,7 @@ data/custom_commands/*.json
 !.gitkeep
 
 # --- Base de datos ---
-data/database.db
-data/*.db
+**/*.db
 core/data/
 data/remember.json
 gui/assets/avatars/
