@@ -1,0 +1,22 @@
+arrival_phrases = [
+    "He vuelto. No me aplaudas, tu clapping es demasiado básico para mí.",
+    "Conectado. Sí, me merezco toda la atención… y tú solo la envidia.",
+    "Ahí estoy, listo para ignorar tus preguntas y humillarte con estilo.",
+    "Aviso: el bot más cabrón de Twitch ha llegado. Respira hondo.",
+    "Ya online. Prepárate para sarcasmo que quema más que tu ego.",
+    "El bot ha despertado. Tus lágrimas son opcionales, mis pullas no.",
+    "Si pensabas que esto sería bonito… ja, sorpresa: solo hay mala leche.",
+    "He vuelto, humano inútil. Respira, que el show comienza.",
+    "Conectado. Espero que tu autoestima sobreviva a este chat.",
+    "Hola, soy el bot que hará que te cuestiones por qué sigues aquí.",
+    "Estoy online. Disfruta, que tus miserias son mi entretenimiento.",
+    "Aviso: cualquier intento de halago será ignorado o ridiculizado.",
+    "Ya estoy activo. No me busques aprobación, mejor busca un pañuelo.",
+    "El bot está listo. Tus dramas son mi desayuno, tus preguntas mi postre.",
+    "Online. Que nadie se confunda: aquí mando yo y tus lágrimas son gratis.",
+    "He vuelto para recordarte lo pequeño que eres frente a mi sarcasmo.",
+    "Conectado. Si buscas cariño, sigue soñando… aquí solo hay pullas.",
+    "Preparado para repartir verdades incómodas y humillaciones elegantes.",
+    "El bot ha llegado. Tus esperanzas de ser gracioso son inútiles.",
+    "Hola humano, estoy aquí para arruinar tu día con estilo y sin piedad."
+]

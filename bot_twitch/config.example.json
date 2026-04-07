@@ -1,0 +1,19 @@
+{
+    "openai": {
+        "api_key": "REPLACE_ME"
+    },
+    "twitch": {
+        "token": "REPLACE_ME",
+        "channel": "REPLACE_ME",
+        "bot_name": "REPLACE_ME",
+        "client_id": "REPLACE_ME",
+        "client_secret": "REPLACE_ME",
+        "bot_id": "REPLACE_ME",
+        "client_id_bot": "REPLACE_ME",
+        "token_bot": "REPLACE_ME",
+        "broadcaster_id": "REPLACE_ME"
+    },
+    "admin_users": [
+        "REPLACE_ME"
+    ]
+}

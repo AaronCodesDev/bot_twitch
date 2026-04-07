@@ -1,0 +1,51 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Virtual env ---
+venv/
+.env/
+
+# --- Config ---
+config.json
+
+# --- Builds ---
+build/
+dist/
+*.exe
+*.spec
+
+# --- Logs ---
+*.log
+logs/
+
+# --- IDEs ---
+/.vscode/
+.idea/
+
+# --- Runtime data ---
+data/save/*.json
+data/subs/*.json
+data/imports/
+data/users/*.json
+data/custom_commands/*.json
+!.gitkeep
+
+# --- Base de datos ---
+data/database.db
+data/*.db
+core/data/
+data/remember.json
+gui/assets/avatars/
+
+# --- CSVs ---
+subscriber-list.csv
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Backups ---
+data/backup/
